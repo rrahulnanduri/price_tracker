@@ -1,0 +1,17 @@
+---
+source_file: "figmake prototype/app/components/ui/navigation-menu.tsx"
+type: "code"
+community: "Navigation Menu"
+location: "L102"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/Navigation_Menu
+---
+
+# NavigationMenuViewport()
+
+## Connections
+- [[navigation-menu.tsx]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/Navigation_Menu

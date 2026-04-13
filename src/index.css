@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ========================================
+   INTRO / PAGE LOADER
+   ======================================== */
+
+/* Cascading grid loader */
+.loader {
+  width: 60px;
+  aspect-ratio: 1;
+  --g: conic-gradient(from -90deg at 10px 10px, #46494C 90deg, #0000 0);
+  background:
+    var(--g),
+    var(--g) 10px 10px,
+    var(--g) 20px 20px;
+  background-size: 50% 50%;
+  animation: l15 1s infinite;
+}
+
+@keyframes l15 {
+  90%, 100% {
+    background-position: -30px 30px, -20px 40px, -10px 50px;
+  }
+}
+
+/* Intro overlay that fades out */
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background-color: #9B9987;
+  transition: opacity 0.6s ease, filter 0.6s ease;
+  pointer-events: all;
+}
+
+.intro-screen.fade-out {
+  opacity: 0;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+/* ========================================
+   PANEL DIVIDERS (middle 1/3 of page height)
+   ======================================== */
+.panel-divider {
+  position: absolute;
+  top: 33.33%;
+  height: 33.33%;
+  width: 1px;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #46494C 15%,
+    #46494C 85%,
+    transparent 100%
+  );
+  z-index: 30;
+  pointer-events: none;
+}
+
+/* ========================================
+   CUSTOM SCROLLBAR
+   ======================================== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(70, 73, 76, 0.3);
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(70, 73, 76, 0.5);
+}
+
+/* ========================================
+   SEQUENTIAL PANEL ENTRANCE ANIMATION
+   ======================================== */
+@keyframes panelEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0px);
+  }
+}
+
+.panel-enter {
+  opacity: 0;
+  animation: panelEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
