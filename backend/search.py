@@ -1,0 +1,154 @@
+"""The search pipeline: cache -> rate limit -> provider -> relevance ranking -> storage."""
+
+import asyncio
+import logging
+import threading
+import time
+from collections import defaultdict, deque
+
+import httpx
+
+from .config import Region, Settings
+from .matching import rank_offers
+from .providers import Provider
+from .storage import Storage, now_iso, query_key
+
+logger = logging.getLogger(__name__)
+
+
+class RateLimited(Exception):
+    def __init__(self, retry_after: int):
+        super().__init__("Too many searches")
+        self.retry_after = retry_after
+
+
+class RateLimiter:
+    """Sliding one-minute window per client. Only live fetches count, not cache hits."""
+
+    WINDOW_SECONDS = 60
+
+    def __init__(self, per_minute: int, clock=time.monotonic):
+        self.per_minute = per_minute
+        self._clock = clock
+        self._hits: dict[str, deque[float]] = defaultdict(deque)
+
+    def check(self, client: str) -> None:
+        if self.per_minute <= 0:
+            return
+        now = self._clock()
+        hits = self._hits[client]
+        while hits and now - hits[0] >= self.WINDOW_SECONDS:
+            hits.popleft()
+        if len(hits) >= self.per_minute:
+            raise RateLimited(retry_after=max(1, int(self.WINDOW_SECONDS - (now - hits[0])) + 1))
+        hits.append(now)
+
+
+class SearchService:
+    def __init__(self, settings: Settings, provider: Provider, storage: Storage, clock=time.monotonic):
+        self.settings = settings
+        self.provider = provider
+        self.storage = storage
+        self._clock = clock
+        self._cache: dict[tuple[str, str], tuple[float, dict]] = {}
+        self._in_flight: dict[tuple[str, str], asyncio.Lock] = {}
+        self._fetch_slots = asyncio.Semaphore(settings.max_concurrent_fetches)
+        self._limiter = RateLimiter(settings.rate_limit_per_minute, clock)
+
+    def _cached(self, key: tuple[str, str]) -> dict | None:
+        entry = self._cache.get(key)
+        if entry and self._clock() - entry[0] < self.settings.cache_ttl_seconds:
+            return {**entry[1], "cached": True}
+        self._cache.pop(key, None)
+        return None
+
+    async def search(self, product: str, region: Region, *, refresh: bool = False,
+                     client: str | None = None) -> dict:
+        """Ranked offers for a product. `client=None` (the scheduler) skips the rate limit."""
+        product = " ".join(product.split())
+        key = (query_key(product), region.code)
+
+        if not refresh and (hit := self._cached(key)):
+            return hit
+
+        # Identical searches arriving together share one fetch instead of racing.
+        lock = self._in_flight.setdefault(key, asyncio.Lock())
+        try:
+            async with lock:
+                if not refresh and (hit := self._cached(key)):
+                    return hit
+                if client is not None:
+                    self._limiter.check(client)
+                async with self._fetch_slots:
+                    raw = await self.provider.search(product, region)
+                result = self._build_result(product, region, raw)
+                if result["results"]:
+                    self._cache[key] = (self._clock(), result)
+                return result
+        finally:
+            if not lock.locked():
+                self._in_flight.pop(key, None)
+
+    def _build_result(self, product: str, region: Region, raw: list) -> dict:
+        ranked, rejected = rank_offers(
+            product, raw, min_relevance=self.settings.min_relevance, limit=self.settings.max_results
+        )
+        results = [offer.to_dict() for offer in ranked]
+        fetched_at = now_iso()
+        if results:
+            self.storage.record_search(product, region.code, region.currency, self.provider.name,
+                                       results, fetched_at)
+            self._after_observation(product, region, results[0])
+        return {
+            "product": product,
+            "country": region.code,
+            "region": region.label,
+            "currency": region.currency,
+            "locale": region.locale,
+            "provider": self.provider.name,
+            "fetched_at": fetched_at,
+            "cached": False,
+            "results": results,
+            "considered": len(raw),
+            "rejected": len(rejected),
+        }
+
+    def _after_observation(self, product: str, region: Region, cheapest: dict) -> None:
+        """Keep a matching watchlist entry up to date and fire its alert once per price drop."""
+        watch = self.storage.find_watch(product, region.code)
+        if not watch:
+            return
+        updates: dict = {"last_checked_at": now_iso(), "last_error": None}
+        if watch["target_hit"] and not watch["alerted_at"]:
+            updates["alerted_at"] = now_iso()
+            self._notify(watch, cheapest, region)
+        elif not watch["target_hit"] and watch["alerted_at"]:
+            updates["alerted_at"] = None   # re-arm for the next drop
+        self.storage.update_watch(watch["id"], **updates)
+
+    def _notify(self, watch: dict, cheapest: dict, region: Region) -> None:
+        logger.info("Price alert: %s at %s %s (target %s)", watch["product"], cheapest["total"],
+                    region.currency, watch["target_price"])
+        url = self.settings.alert_webhook_url
+        if not url:
+            return
+        payload = {
+            "text": (f'Price alert: {watch["product"]} is {cheapest["total"]} {region.currency} at '
+                     f'{cheapest["store"]} (target {watch["target_price"]}). {cheapest["url"]}'),
+            "product": watch["product"],
+            "country": region.code,
+            "currency": region.currency,
+            "price": cheapest["total"],
+            "store": cheapest["store"],
+            "url": cheapest["url"],
+            "target_price": watch["target_price"],
+        }
+
+        def send() -> None:
+            try:
+                httpx.post(url, json=payload, timeout=10)
+            except httpx.HTTPError:
+                logger.warning("Alert webhook failed for %s", watch["product"], exc_info=True)
+
+        # Off the event loop: a slow webhook must not stall the search response.
+        threading.Thread(target=send, daemon=True).start()
