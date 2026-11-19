@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from . import scheduler
 from .config import DEFAULT_REGION, REGIONS, Region, Settings, get_region, load_settings
+from .llm import build_llm_helper
 from .providers import (
     Provider,
     ProviderBlocked,
@@ -51,10 +52,12 @@ def _product_or_422(product: str) -> str:
     return product
 
 
-def create_app(settings: Settings | None = None, provider: Provider | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, provider: Provider | None = None, llm=None) -> FastAPI:
     settings = settings or load_settings()
     storage = Storage(settings.db_path)
-    service = SearchService(settings, provider or build_provider(settings), storage)
+    if llm is None:
+        llm = build_llm_helper(settings)
+    service = SearchService(settings, provider or build_provider(settings, llm), storage, llm=llm)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -100,6 +103,11 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             "default_region": DEFAULT_REGION,
             "refresh_hours": settings.refresh_hours,
             "cache_ttl_seconds": settings.cache_ttl_seconds,
+            "ai": {
+                "model": llm.model if llm else None,
+                "fallback": bool(llm and llm.options.fallback),
+                "judge": bool(llm and llm.options.judge),
+            },
             "regions": [
                 {"code": r.code, "label": r.label, "currency": r.currency, "locale": r.locale}
                 for r in REGIONS.values()

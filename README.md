@@ -54,6 +54,31 @@ PRICE_PROVIDER=demo uvicorn backend.main:app --port 8000
 All settings are environment variables, listed with defaults in
 [.env.example](.env.example).
 
+## Optional AI help
+
+With [ScrapeGraphAI](https://github.com/ScrapeGraphAI/Scrapegraph-ai) installed
+(`pip install -r requirements-llm.txt`) and `LLM_MODEL` set, an LLM helps in
+two narrow places:
+
+- **Extraction fallback:** if a results page loads but the scraper's selectors
+  find no offers (usually a Google layout change), the LLM reads the page
+  instead. Any offer whose price or title is not actually on the page is
+  discarded, and prices are always parsed by the app, never by the model.
+- **Second opinion on matching:** once per search, the LLM is asked whether
+  the plausible listings are exactly the product searched for. It can drop a
+  variant the rules kept or keep a listing they missed. It never overrides a
+  mismatched model number or an accessory.
+
+If the model fails or is unreachable, the search uses the rules-only result.
+Results read or corrected by the AI are labelled in the UI. ScrapeGraphAI's
+telemetry is switched off.
+
+Compare rules alone with rules plus AI on the labelled cases and saved pages:
+
+```bash
+python -m evals.run --ai -v
+```
+
 ## Checks
 
 ```bash
@@ -90,7 +115,7 @@ scraper, and whenever results look off.
 
 ## Layout
 
-- `backend/` — `app.py` (API), `search.py` (cache, rate limit, pipeline), `matching.py` (relevance), `pricing.py` (price parsing), `providers/` (price sources), `storage.py` (SQLite), `scheduler.py` (re-checks)
+- `backend/` — `app.py` (API), `search.py` (cache, rate limit, pipeline), `matching.py` (relevance), `llm.py` (optional AI help), `pricing.py` (price parsing), `providers/` (price sources), `storage.py` (SQLite), `scheduler.py` (re-checks)
 - `src/` — `App.tsx`, `components/`, `hooks/`, `lib/` (API client, formatting, region detection, chart helpers)
 - `tests/`, `src/lib/lib.test.ts` — backend and frontend tests
 - `evals/` — search-quality evals

@@ -1,0 +1,6 @@
+# Optional AI help (extraction fallback and match second opinion). Enable with LLM_MODEL.
+-r requirements.txt
+scrapegraphai>=2.3
+# Plus the LangChain package for your model provider, e.g.:
+#   langchain-anthropic   for anthropic/... models
+#   langchain-ollama      for ollama/... models (usually installed with scrapegraphai)

@@ -9,7 +9,7 @@ from collections import defaultdict, deque
 import httpx
 
 from .config import Region, Settings
-from .matching import rank_offers
+from .matching import score_offers, select_offers
 from .providers import Provider
 from .storage import Storage, now_iso, query_key
 
@@ -45,10 +45,12 @@ class RateLimiter:
 
 
 class SearchService:
-    def __init__(self, settings: Settings, provider: Provider, storage: Storage, clock=time.monotonic):
+    def __init__(self, settings: Settings, provider: Provider, storage: Storage, clock=time.monotonic,
+                 llm=None):
         self.settings = settings
         self.provider = provider
         self.storage = storage
+        self.llm = llm   # optional backend.llm.LLMHelper for a second opinion on matching
         self._clock = clock
         self._cache: dict[tuple[str, str], tuple[float, dict]] = {}
         self._in_flight: dict[tuple[str, str], asyncio.Lock] = {}
@@ -81,7 +83,7 @@ class SearchService:
                     self._limiter.check(client)
                 async with self._fetch_slots:
                     raw = await self.provider.search(product, region)
-                result = self._build_result(product, region, raw)
+                result = await self._build_result(product, region, raw)
                 if result["results"]:
                     self._cache[key] = (self._clock(), result)
                 return result
@@ -89,9 +91,14 @@ class SearchService:
             if not lock.locked():
                 self._in_flight.pop(key, None)
 
-    def _build_result(self, product: str, region: Region, raw: list) -> dict:
-        ranked, rejected = rank_offers(
-            product, raw, min_relevance=self.settings.min_relevance, limit=self.settings.max_results
+    async def _build_result(self, product: str, region: Region, raw: list) -> dict:
+        min_relevance = self.settings.min_relevance
+        score_offers(product, raw)
+        ai_changed = None
+        if self.llm is not None and self.llm.options.judge and raw:
+            ai_changed = await self.llm.review_matches(product, raw, min_relevance)
+        ranked, rejected = select_offers(
+            product, raw, min_relevance=min_relevance, limit=self.settings.max_results
         )
         results = [offer.to_dict() for offer in ranked]
         fetched_at = now_iso()
@@ -111,6 +118,9 @@ class SearchService:
             "results": results,
             "considered": len(raw),
             "rejected": len(rejected),
+            # How AI was involved: None if it was not asked; otherwise listings it changed.
+            "ai_extracted": any(o.extracted_by == "ai" for o in raw),
+            "ai_changed": ai_changed,
         }
 
     def _after_observation(self, product: str, region: Region, cheapest: dict) -> None:

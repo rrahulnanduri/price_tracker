@@ -9,7 +9,7 @@ __all__ = [
 ]
 
 
-def build_provider(settings: Settings) -> Provider:
+def build_provider(settings: Settings, llm=None) -> Provider:
     """Pick the price source. "auto" prefers SerpApi when a key is set, else the scraper."""
     choice = settings.provider
     if choice == "auto":
@@ -19,5 +19,5 @@ def build_provider(settings: Settings) -> Provider:
     if choice == "demo":
         return DemoProvider()
     if choice == "google":
-        return GoogleShoppingProvider()
+        return GoogleShoppingProvider(llm)
     raise ValueError(f"Unknown PRICE_PROVIDER {settings.provider!r}; use auto, google, serpapi or demo.")

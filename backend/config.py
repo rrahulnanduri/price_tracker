@@ -61,6 +61,13 @@ def _float(name: str, default: float) -> float:
         return default
 
 
+def _bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 @dataclass(frozen=True)
 class Settings:
     provider: str                 # "auto" | "google" | "serpapi" | "demo"
@@ -74,6 +81,12 @@ class Settings:
     min_relevance: float          # offers scoring below this are dropped
     max_results: int
     alert_webhook_url: str
+    llm_model: str                # "provider/model" for ScrapeGraphAI; empty disables AI help
+    llm_api_key: str
+    llm_base_url: str             # e.g. a local Ollama server
+    llm_model_tokens: int         # context size, needed for models ScrapeGraphAI does not know
+    llm_fallback: bool            # let the LLM read pages the scraper's selectors cannot
+    llm_judge: bool               # let the LLM give a second opinion on which listings match
 
 
 def load_settings() -> Settings:
@@ -90,4 +103,10 @@ def load_settings() -> Settings:
         min_relevance=_float("MIN_RELEVANCE", 0.7),
         max_results=_int("MAX_RESULTS", 8),
         alert_webhook_url=os.environ.get("ALERT_WEBHOOK_URL", "").strip(),
+        llm_model=os.environ.get("LLM_MODEL", "").strip(),
+        llm_api_key=os.environ.get("LLM_API_KEY", "").strip(),
+        llm_base_url=os.environ.get("LLM_BASE_URL", "").strip(),
+        llm_model_tokens=_int("LLM_MODEL_TOKENS", 0),
+        llm_fallback=_bool("LLM_FALLBACK", True),
+        llm_judge=_bool("LLM_JUDGE", True),
     )

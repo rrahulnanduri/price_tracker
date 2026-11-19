@@ -75,6 +75,7 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
                     <div className="flex justify-between gap-2 text-[10px] tracking-wider opacity-60">
                       <span>{shipping ?? "SHIPPING NOT STATED"}</span>
                       <span title="How closely this listing matches your search">
+                        {offer.extracted_by === "ai" && "AI-READ · "}
                         MATCH {Math.round(offer.relevance * 100)}%
                       </span>
                     </div>
@@ -99,6 +100,15 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
                 : ""}
               CHECKED {formatAge(data.fetched_at)}
               {data.provider === "demo" && <strong className="ml-2">· DEMO DATA</strong>}
+              {(data.ai_extracted || data.ai_changed !== null) && (
+                <>
+                  <br />
+                  <span title="An AI model helped with this search; prices are always taken from the page text">
+                    {data.ai_extracted ? "READ BY AI (LAYOUT NOT RECOGNISED)" : "AI-CHECKED MATCHES"}
+                    {data.ai_changed ? ` · ${data.ai_changed} CORRECTED` : ""}
+                  </span>
+                </>
+              )}
             </span>
             <button
               type="button"
