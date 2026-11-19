@@ -8,3 +8,14 @@ __pycache__/
 .DS_Store
 graphify-out/cache/
 .graphify_python
+
+.venv/
+.pytest_cache/
+.idea/
+*.tsbuildinfo
+
+price_tracker.db*
+evals/reports/
+.ruff_cache/
+coverage/
+graphify-out/

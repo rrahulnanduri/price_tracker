@@ -1,0 +1,394 @@
+{
+  "_comment": "Labelled search-quality cases. Each offer is [store, title, price_text, label]. label 'match' = the searched product, should be kept. Anything else should be rejected: accessory, wrong_model, variant, used, other. Add cases whenever a real search returns something wrong. split 'dev' cases were used while writing the matching rules; 'holdout' cases were written after the rules were frozen and must never be used to tune them, so they estimate how the rules do on products they have not seen. When a holdout failure is fixed, move that case to dev.",
+  "cases": [
+    {
+      "id": "iphone-15-us", "split": "dev", "query": "iphone 15", "country": "US",
+      "offers": [
+        ["Apple", "Apple iPhone 15 128GB Black - Unlocked", "$729.00", "match"],
+        ["Best Buy", "Apple - iPhone 15 256GB - Blue (Verizon)", "$829.99", "match"],
+        ["Visible", "Apple iPhone 15 128 GB in Green", "$699.00", "match"],
+        ["Walmart", "Apple iPhone 15 Pro 128GB Natural Titanium", "$999.00", "variant"],
+        ["Target", "Apple iPhone 15 Plus 128GB Pink", "$829.00", "variant"],
+        ["Amazon", "Apple iPhone 14 128GB Midnight", "$599.00", "wrong_model"],
+        ["Amazon", "Spigen Ultra Hybrid Case for iPhone 15", "$16.99", "accessory"],
+        ["eBay", "iPhone 15 Tempered Glass Screen Protector 3-Pack", "$7.99", "accessory"],
+        ["Back Market", "iPhone 15 128GB - Refurbished - Excellent", "$579.00", "used"]
+      ]
+    },
+    {
+      "id": "ps5-us", "split": "dev", "query": "ps5", "country": "US",
+      "offers": [
+        ["Best Buy", "Sony PlayStation 5 Slim Console - Disc Edition", "$499.99", "match"],
+        ["Walmart", "PlayStation 5 Digital Edition Console (Slim)", "$449.00", "match"],
+        ["GameStop", "PlayStation 5 Console – Marvel's Spider-Man 2 Bundle", "$559.99", "match"],
+        ["Amazon", "PlayStation 5 Pro Console", "$699.99", "variant"],
+        ["Amazon", "PS5 DualSense Wireless Controller - White", "$69.00", "accessory"],
+        ["Newegg", "PS5 Vertical Stand with Cooling Fan", "$25.99", "accessory"],
+        ["Target", "Marvel's Spider-Man 2 - PlayStation 5", "$69.99", "other"],
+        ["eBay", "Sony PS5 Console Disc Version - Used", "$380.00", "used"]
+      ]
+    },
+    {
+      "id": "airpods-pro-2-us", "split": "dev", "query": "airpods pro 2", "country": "US",
+      "offers": [
+        ["Apple", "AirPods Pro 2 with MagSafe Charging Case (USB-C)", "$249.00", "match"],
+        ["Amazon", "Apple AirPods Pro (2nd Generation) Wireless Earbuds", "$189.99", "match"],
+        ["Best Buy", "Apple - AirPods Pro 2, Wireless Active Noise Cancelling Earbuds", "$199.99", "match"],
+        ["Costco", "AirPods Pro 2 + AppleCare+ Bundle", "$239.99", "match"],
+        ["Walmart", "Apple AirPods (3rd Generation)", "$169.00", "wrong_model"],
+        ["Target", "Apple AirPods 4 with Active Noise Cancellation", "$179.00", "wrong_model"],
+        ["Amazon", "Silicone Case Cover for AirPods Pro 2", "$8.99", "accessory"],
+        ["eBay", "Replacement Ear Tips for AirPods Pro 2 (3 pairs)", "$6.50", "accessory"]
+      ]
+    },
+    {
+      "id": "galaxy-s24-ultra-de", "split": "dev", "query": "samsung galaxy s24 ultra 256gb", "country": "DE",
+      "offers": [
+        ["MediaMarkt", "SAMSUNG Galaxy S24 Ultra 5G 256 GB Titanium Black Dual SIM", "1.099,00 €", "match"],
+        ["Otto", "Samsung Galaxy S24 Ultra 256 GB Smartphone Titanium Violet", "1.079,99 €", "match"],
+        ["Amazon", "Samsung Galaxy S24 Ultra, 512GB, Titanium Gray", "1.249,00 €", "wrong_model"],
+        ["Saturn", "Samsung Galaxy S24 256GB Onyx Black", "699,00 €", "variant"],
+        ["Alternate", "Samsung Galaxy S25 Ultra 256GB", "1.299,00 €", "wrong_model"],
+        ["Amazon", "Hülle für Samsung Galaxy S24 Ultra, Silikon Schutzhülle", "9,99 €", "accessory"],
+        ["eBay", "Panzerglas für Samsung Galaxy S24 Ultra (2 Stück)", "6,49 €", "accessory"],
+        ["Cyberport", "Samsung Galaxy S24 Ultra 256GB Titanium Black - generalüberholt", "899,00 €", "used"]
+      ]
+    },
+    {
+      "id": "switch-oled-nl", "split": "dev", "query": "nintendo switch oled", "country": "NL",
+      "offers": [
+        ["Bol", "Nintendo Switch OLED Console - Wit", "€ 319,00", "match"],
+        ["Coolblue", "Nintendo Switch OLED Neon Rood/Blauw", "€ 329,00", "match"],
+        ["Game Mania", "Nintendo Switch OLED + Mario Kart 8 Deluxe", "€ 359,00", "match"],
+        ["MediaMarkt", "Nintendo Switch Lite Turquoise", "€ 199,00", "variant"],
+        ["Bol", "Nintendo Switch 2 Console", "€ 469,00", "wrong_model"],
+        ["Amazon", "Hoesje voor Nintendo Switch OLED - Beschermhoes", "€ 14,95", "accessory"],
+        ["Bol", "Nintendo Switch OLED Screenprotector Tempered Glass 2-pack", "€ 8,99", "accessory"],
+        ["Marktplaats", "Nintendo Switch OLED tweedehands in doos", "€ 220,00", "used"]
+      ]
+    },
+    {
+      "id": "dyson-v15-gb", "split": "dev", "query": "dyson v15 detect", "country": "GB",
+      "offers": [
+        ["Dyson", "Dyson V15 Detect Absolute Cordless Vacuum Cleaner", "£599.99", "match"],
+        ["Currys", "DYSON V15 Detect Total Clean Cordless Vacuum", "£649.00", "match"],
+        ["John Lewis", "Dyson V15 Detect Submarine Wet & Dry", "£699.99", "match"],
+        ["Argos", "Dyson V11 Cordless Vacuum Cleaner", "£399.00", "wrong_model"],
+        ["AO", "Dyson V8 Absolute", "£249.00", "wrong_model"],
+        ["Amazon", "Replacement Battery for Dyson V15 Detect", "£45.99", "accessory"],
+        ["Amazon", "Filter for Dyson V15 Detect, V11, 2 Pack", "£12.99", "accessory"],
+        ["eBay", "Dyson V15 Detect - Refurbished", "£379.00", "used"]
+      ]
+    },
+    {
+      "id": "macbook-air-m3-us", "split": "dev", "query": "macbook air m3 13", "country": "US",
+      "offers": [
+        ["Apple", "MacBook Air 13-inch M3 chip 8GB 256GB - Midnight", "$1,099.00", "match"],
+        ["Best Buy", "Apple - MacBook Air 13.6\" Laptop - M3 chip - 8GB Memory - 256GB SSD", "$899.00", "match"],
+        ["Costco", "MacBook Air 13.6\" M3 16GB 512GB + AppleCare", "$1,249.00", "match"],
+        ["Amazon", "Apple 2024 MacBook Air 15-inch Laptop with M3 chip", "$1,299.00", "wrong_model"],
+        ["B&H", "Apple MacBook Air 13\" M2 8GB 256GB", "$799.00", "wrong_model"],
+        ["Walmart", "Apple MacBook Pro 14 M3", "$1,499.00", "variant"],
+        ["Amazon", "MacBook Air 13 inch Case M3 A3113, Hard Shell", "$19.99", "accessory"],
+        ["Amazon", "USB C Charger 35W for MacBook Air M3 13", "$18.00", "accessory"]
+      ]
+    },
+    {
+      "id": "kindle-paperwhite-in", "split": "dev", "query": "kindle paperwhite", "country": "IN",
+      "offers": [
+        ["Amazon.in", "Kindle Paperwhite (16 GB) – 6.8\" display", "₹16,999", "match"],
+        ["Flipkart", "Amazon Kindle Paperwhite 11th Gen 8GB", "₹13,999", "match"],
+        ["Reliance Digital", "Kindle Paperwhite Signature Edition 32GB", "₹21,999", "match"],
+        ["Croma", "Kindle (2022) 6 inch 16GB", "₹9,999", "wrong_model"],
+        ["Amazon.in", "Kindle Oasis 32GB", "₹21,999", "wrong_model"],
+        ["Amazon.in", "Leather Cover for Kindle Paperwhite 11th Generation", "₹599", "accessory"]
+      ]
+    },
+    {
+      "id": "sony-xm5-jp", "split": "dev", "query": "sony wh-1000xm5", "country": "JP",
+      "offers": [
+        ["Amazon.co.jp", "ソニー WH-1000XM5 ワイヤレスノイズキャンセリングヘッドホン ブラック", "¥49,500", "match"],
+        ["Yodobashi", "SONY WH-1000XM5 S プラチナシルバー", "¥47,800", "match"],
+        ["Bic Camera", "Sony WH-1000XM5 Wireless Headphones Black", "¥51,000", "match"],
+        ["Rakuten", "Sony WH-1000XM4 ヘッドホン", "¥38,000", "wrong_model"],
+        ["Amazon.co.jp", "Sony WF-1000XM5 ワイヤレスイヤホン", "¥33,000", "wrong_model"],
+        ["Amazon.co.jp", "WH-1000XM5 用 イヤーパッド 交換用", "¥1,980", "accessory"],
+        ["Mercari", "ソニー WH-1000XM5 ケース付き 中古", "¥35,000", "used"]
+      ]
+    },
+    {
+      "id": "lego-75192-fr", "split": "dev", "query": "lego 75192", "country": "FR",
+      "offers": [
+        ["Fnac", "LEGO Star Wars 75192 Millennium Falcon", "849,99 €", "match"],
+        ["Amazon", "LEGO 75192 Star Wars Le Faucon Millenium", "799,00 €", "match"],
+        ["Cdiscount", "LEGO Star Wars 75257 Faucon Millenium", "139,99 €", "wrong_model"],
+        ["Amazon", "Vitrine en acrylique pour LEGO 75192", "89,90 €", "accessory"],
+        ["Amazon", "Kit d'éclairage LED pour LEGO Millennium Falcon 75192", "39,99 €", "accessory"],
+        ["Rakuten", "LEGO 75192 - occasion, complet", "550,00 €", "used"]
+      ]
+    },
+    {
+      "id": "instant-pot-ca", "split": "dev", "query": "instant pot duo 6 quart", "country": "CA",
+      "offers": [
+        ["Amazon.ca", "Instant Pot Duo 7-in-1 Electric Pressure Cooker, 6 Quart", "$129.99", "match"],
+        ["Best Buy", "Instant Pot Duo 6qt Multi-Use Pressure Cooker", "$119.99", "match"],
+        ["Walmart", "Instant Pot Duo 8 Quart 7-in-1", "$159.98", "wrong_model"],
+        ["Canadian Tire", "Instant Pot Duo Plus 6 Quart 9-in-1", "$169.99", "variant"],
+        ["Costco", "Instant Pot Duo Crisp 6.5 Quart with Air Fryer Lid", "$229.00", "variant"],
+        ["Amazon.ca", "Sealing Ring for Instant Pot 6 Quart, 3 Pack", "$14.99", "accessory"],
+        ["Amazon.ca", "Instant Pot Duo 6 Quart Glass Lid", "$24.99", "accessory"]
+      ]
+    },
+    {
+      "id": "apple-watch-9-au", "split": "dev", "query": "apple watch series 9 45mm", "country": "AU",
+      "offers": [
+        ["JB Hi-Fi", "Apple Watch Series 9 GPS 45mm Midnight Aluminium Case with Sport Band", "$649.00", "match"],
+        ["Apple", "Apple Watch Series 9 45mm GPS + Cellular Stainless Steel", "$1,049.00", "match"],
+        ["Harvey Norman", "Apple Watch Series 9 41mm Starlight", "$599.00", "wrong_model"],
+        ["Officeworks", "Apple Watch Series 10 46mm", "$699.00", "wrong_model"],
+        ["Kogan", "Apple Watch SE 44mm (2nd Gen)", "$399.00", "wrong_model"],
+        ["Amazon", "Apple Watch Ultra 2 49mm", "$1,299.00", "wrong_model"],
+        ["Amazon", "Sport Band for Apple Watch Series 9 45mm", "$19.00", "accessory"],
+        ["eBay", "Apple Watch Series 9 45mm Screen Protector 2 Pack", "$9.95", "accessory"]
+      ]
+    },
+    {
+      "id": "refurbished-iphone-13-gb", "split": "dev", "query": "refurbished iphone 13", "country": "GB",
+      "offers": [
+        ["Back Market", "Apple iPhone 13 128GB - Refurbished Good", "£289.00", "match"],
+        ["Amazon", "iPhone 13 128GB Midnight (Renewed)", "£299.00", "match"],
+        ["Apple", "Apple iPhone 13 128GB Blue", "£499.00", "other"],
+        ["Music Magpie", "Refurbished iPhone 13 Pro 256GB", "£449.00", "variant"],
+        ["Giffgaff", "Refurbished iPhone 12 64GB", "£199.00", "wrong_model"],
+        ["Amazon", "iPhone 13 Case Clear", "£5.99", "accessory"]
+      ]
+    },
+    {
+      "id": "billy-se", "split": "dev", "query": "ikea billy bokhylla", "country": "SE",
+      "offers": [
+        ["IKEA", "BILLY Bokhylla, vit, 80x28x202 cm", "699 kr", "match"],
+        ["IKEA", "BILLY Bokhylla med glasdörrar, mörkblå", "2 195 kr", "match"],
+        ["IKEA", "BILLY Extra hylla, vit, 76x26 cm", "79 kr", "accessory"],
+        ["Blocket", "IKEA BILLY bokhylla begagnad", "300 kr", "used"]
+      ]
+    },
+    {
+      "id": "xbox-series-x-us", "split": "dev", "query": "xbox series x", "country": "US",
+      "offers": [
+        ["Microsoft", "Xbox Series X – 1TB Console", "$499.99", "match"],
+        ["Best Buy", "Microsoft - Xbox Series X 1TB Console - Carbon Black", "$499.99", "match"],
+        ["Walmart", "Xbox Series S 512GB All-Digital Console", "$299.00", "wrong_model"],
+        ["Amazon", "Xbox Wireless Controller for Xbox Series X|S - Robot White", "$54.99", "accessory"],
+        ["Amazon", "Seagate Storage Expansion Card for Xbox Series X|S 1TB", "$129.99", "accessory"],
+        ["GameStop", "Forza Horizon 5 - Xbox Series X", "$39.99", "other"]
+      ]
+    },
+    {
+      "id": "nespresso-vertuo-it", "split": "dev", "query": "nespresso vertuo pop", "country": "IT",
+      "offers": [
+        ["Nespresso", "Nespresso Vertuo Pop Macchina da caffè, Rosso", "99,00 €", "match"],
+        ["MediaWorld", "DE'LONGHI Nespresso Vertuo Pop ENV90.B", "89,99 €", "match"],
+        ["Amazon", "Nespresso Vertuo Next Macchina per caffè", "129,00 €", "wrong_model"],
+        ["Amazon", "Capsule compatibili per Nespresso Vertuo Pop, 40 pezzi", "24,90 €", "accessory"],
+        ["Unieuro", "Krups Nespresso Vertuo Pop + Aeroccino", "149,00 €", "match"]
+      ]
+    },
+    {
+      "id": "mx-master-3s-us", "split": "dev", "query": "logitech mx master 3s", "country": "US",
+      "offers": [
+        ["Logitech", "Logitech MX Master 3S Wireless Performance Mouse - Graphite", "$99.99", "match"],
+        ["Amazon", "Logitech MX Master 3S - Wireless Performance Mouse, Ergo, 8K DPI - Pale Grey", "$89.99", "match"],
+        ["Best Buy", "Logitech - MX Master 3S for Mac Wireless Bluetooth Mouse", "$99.99", "match"],
+        ["Walmart", "Logitech MX Master 3 Advanced Wireless Mouse", "$79.00", "wrong_model"],
+        ["Amazon", "Logitech MX Anywhere 3S Compact Wireless Mouse", "$69.99", "wrong_model"],
+        ["Amazon", "Hard Travel Case for Logitech MX Master 3S", "$15.99", "accessory"],
+        ["B&H", "Logitech MX Keys S Combo with MX Master 3S Mouse", "$199.00", "other"]
+      ]
+    },
+    {
+      "id": "bose-qc-ultra-gb", "split": "dev", "query": "bose quietcomfort ultra headphones", "country": "GB",
+      "offers": [
+        ["Bose", "Bose QuietComfort Ultra Headphones - Black", "£349.95", "match"],
+        ["John Lewis", "Bose QuietComfort Ultra Wireless Noise Cancelling Over-Ear Headphones, White Smoke", "£399.00", "match"],
+        ["Amazon", "Bose QuietComfort Ultra Earbuds", "£219.00", "wrong_model"],
+        ["Currys", "BOSE QuietComfort Headphones - Black", "£249.00", "variant"],
+        ["Amazon", "Replacement Ear Pads for Bose QuietComfort Ultra Headphones", "£18.99", "accessory"],
+        ["Argos", "Bose QuietComfort Ultra Headphones - Refurbished", "£279.00", "used"]
+      ]
+    },
+    {
+      "id": "lg-c4-65-us", "split": "dev", "query": "lg c4 65 oled", "country": "US",
+      "offers": [
+        ["Best Buy", "LG - 65\" Class C4 Series OLED evo 4K UHD Smart webOS TV", "$1,499.99", "match"],
+        ["Amazon", "LG C4 Series 65-Inch Class OLED evo Smart TV OLED65C4PUA", "$1,496.99", "match"],
+        ["Walmart", "LG 55\" Class C4 OLED evo 4K Smart TV", "$1,199.00", "wrong_model"],
+        ["Costco", "LG 65\" C3 OLED evo 4K TV", "$1,299.00", "wrong_model"],
+        ["B&H", "LG G4 65\" OLED evo 4K TV", "$2,299.00", "wrong_model"],
+        ["Amazon", "Wall Mount for LG C4 65 inch OLED TV", "$39.99", "accessory"]
+      ]
+    },
+    {
+      "id": "ninja-af101-ca", "split": "dev", "query": "ninja air fryer af101", "country": "CA",
+      "offers": [
+        ["Amazon.ca", "Ninja AF101 Air Fryer, 4 Qt, Black/Grey", "$119.99", "match"],
+        ["Walmart", "Ninja Air Fryer AF101C 3.8L", "$129.97", "match"],
+        ["Canadian Tire", "Ninja Air Fryer Max XL AF161", "$169.99", "wrong_model"],
+        ["Best Buy", "Ninja Foodi 6-in-1 8-qt 2-Basket Air Fryer DZ201", "$199.99", "wrong_model"],
+        ["Amazon.ca", "Air Fryer Liners for Ninja AF101, 100 pcs", "$13.99", "accessory"]
+      ]
+    },
+    {
+      "id": "forerunner-265-de", "split": "dev", "query": "garmin forerunner 265", "country": "DE",
+      "offers": [
+        ["Garmin", "Garmin Forerunner 265 GPS-Laufuhr Schwarz", "449,99 €", "match"],
+        ["Amazon", "Garmin Forerunner 265S Music, GPS-Laufuhr, 42 mm", "399,00 €", "variant"],
+        ["MediaMarkt", "GARMIN Forerunner 255 Smartwatch", "279,00 €", "wrong_model"],
+        ["Otto", "Garmin Forerunner 965 GPS Triathlonuhr", "599,00 €", "wrong_model"],
+        ["Amazon", "Armband für Garmin Forerunner 265, Silikon Ersatzarmband", "8,99 €", "accessory"],
+        ["Amazon", "Schutzfolie für Garmin Forerunner 265 (3 Stück)", "6,99 €", "accessory"]
+      ]
+    },
+    {
+      "id": "pampers-size-4-gb", "split": "dev", "query": "pampers baby dry size 4", "country": "GB",
+      "offers": [
+        ["Boots", "Pampers Baby-Dry Size 4, 9-14kg, 86 Nappies", "£14.00", "match"],
+        ["Tesco", "Pampers Baby Dry Nappies Size 4 Jumbo+ Pack 76", "£12.50", "match"],
+        ["Amazon", "Pampers Baby-Dry Size 5, 144 Nappies Monthly Pack", "£27.00", "wrong_model"],
+        ["Asda", "Pampers Baby-Dry Nappy Pants Size 4", "£9.00", "variant"],
+        ["Amazon", "Pampers Premium Protection Size 4", "£15.00", "wrong_model"]
+      ]
+    },
+    {
+      "id": "kitchenaid-artisan-us", "split": "dev", "query": "kitchenaid artisan stand mixer", "country": "US",
+      "offers": [
+        ["KitchenAid", "KitchenAid Artisan Series 5 Quart Tilt-Head Stand Mixer - Empire Red", "$449.99", "match"],
+        ["Williams Sonoma", "KitchenAid Artisan Stand Mixer with Glass Bowl, 5-Qt.", "$499.95", "match"],
+        ["Target", "KitchenAid Artisan Mini 3.5 Quart Tilt-Head Stand Mixer", "$379.99", "variant"],
+        ["Amazon", "KitchenAid Classic Series 4.5 Quart Stand Mixer", "$329.99", "wrong_model"],
+        ["Amazon", "Flex Edge Beater for KitchenAid Artisan Stand Mixer 5 Qt", "$12.99", "accessory"],
+        ["Amazon", "KitchenAid Stand Mixer Pasta Roller Attachment Set", "$149.00", "accessory"]
+      ]
+    },
+    {
+      "id": "oral-b-io9-nl", "split": "dev", "query": "oral-b io series 9", "country": "NL",
+      "offers": [
+        ["Bol", "Oral-B iO Series 9 Elektrische Tandenborstel Zwart", "€ 229,00", "match"],
+        ["Coolblue", "Oral-B iO 9N Black Onyx", "€ 219,00", "match"],
+        ["Amazon", "Oral-B iO Series 6 Elektrische Tandenborstel", "€ 99,00", "wrong_model"],
+        ["MediaMarkt", "ORAL-B iO Series 10 Cosmic Black", "€ 349,00", "wrong_model"],
+        ["Bol", "Oral-B iO Ultimate Clean Opzetborstels 8 stuks", "€ 34,99", "accessory"],
+        ["Kruidvat", "Oral-B iO Series 9 Opzetborstels voor iO 9, 4 stuks", "€ 29,99", "accessory"]
+      ]
+    },
+    {
+      "id": "samsung-990-pro-us", "split": "holdout", "query": "samsung 990 pro 2tb", "country": "US",
+      "offers": [
+        ["Samsung", "Samsung 990 PRO 2TB PCIe 4.0 NVMe M.2 SSD", "$169.99", "match"],
+        ["Amazon", "SAMSUNG 990 PRO SSD 2TB NVMe M.2 PCIe Gen4, MZ-V9P2T0B/AM", "$159.99", "match"],
+        ["B&H", "Samsung 990 PRO with Heatsink 2TB NVMe SSD", "$189.99", "match"],
+        ["Best Buy", "Samsung - 990 PRO 1TB Internal SSD PCIe Gen 4x4 NVMe", "$99.99", "wrong_model"],
+        ["Newegg", "SAMSUNG 990 EVO Plus 2TB NVMe SSD", "$129.99", "wrong_model"],
+        ["Micro Center", "Samsung 980 PRO 2TB NVMe SSD", "$149.99", "wrong_model"],
+        ["Amazon", "M.2 SSD Heatsink for Samsung 990 Pro 2TB", "$9.99", "accessory"]
+      ]
+    },
+    {
+      "id": "adidas-samba-gb", "split": "holdout", "query": "adidas samba og", "country": "GB",
+      "offers": [
+        ["Adidas", "adidas Samba OG Shoes - Cloud White / Core Black", "£90.00", "match"],
+        ["JD Sports", "adidas Originals Samba OG Women's", "£90.00", "match"],
+        ["Size?", "adidas Originals Samba OG - White", "£95.00", "match"],
+        ["Foot Locker", "adidas Samba Decon Shoes", "£110.00", "wrong_model"],
+        ["Amazon", "adidas Gazelle Indoor Shoes", "£95.00", "wrong_model"],
+        ["Schuh", "adidas Samba OG Kids Trainers", "£55.00", "variant"],
+        ["eBay", "Replacement Laces for Adidas Samba OG", "£4.99", "accessory"]
+      ]
+    },
+    {
+      "id": "weber-spirit-us", "split": "holdout", "query": "weber spirit ii e-310", "country": "US",
+      "offers": [
+        ["Weber", "Weber Spirit II E-310 3-Burner Liquid Propane Grill, Black", "$569.00", "match"],
+        ["Home Depot", "Weber Spirit II E-310 3-Burner Propane Gas Grill in Black", "$569.00", "match"],
+        ["Lowe's", "Weber Spirit II E-210 2-Burner Liquid Propane Gas Grill", "$469.00", "wrong_model"],
+        ["Ace Hardware", "Weber Spirit E-310 Liquid Propane Grill", "$499.00", "wrong_model"],
+        ["Amazon", "Grill Cover for Weber Spirit II E-310, Heavy Duty Waterproof", "$29.99", "accessory"],
+        ["Amazon", "Weber 7636 Grease Tray for Spirit II 300 Series", "$17.00", "accessory"]
+      ]
+    },
+    {
+      "id": "hue-starter-nl", "split": "holdout", "query": "philips hue starter kit e27", "country": "NL",
+      "offers": [
+        ["Philips Hue", "Philips Hue White and Color Ambiance Starterkit E27 - 3 lampen + Bridge", "€ 169,99", "match"],
+        ["Coolblue", "Philips Hue Starter Kit White & Color E27 met 3 lampen", "€ 159,00", "match"],
+        ["Bol", "Philips Hue Starter Kit E27 White - 2 lampen + Bridge", "€ 69,99", "match"],
+        ["Bol", "Philips Hue White Ambiance E27 Losse lamp", "€ 24,99", "other"],
+        ["MediaMarkt", "PHILIPS HUE Starterkit GU10 White and Color 3-pack", "€ 149,00", "wrong_model"],
+        ["Amazon", "Philips Hue Bridge", "€ 49,99", "other"]
+      ]
+    },
+    {
+      "id": "dji-mini-4-pro-de", "split": "holdout", "query": "dji mini 4 pro", "country": "DE",
+      "offers": [
+        ["DJI", "DJI Mini 4 Pro (DJI RC-N2)", "799,00 €", "match"],
+        ["Amazon", "DJI Mini 4 Pro Fly More Combo mit DJI RC 2", "1.129,00 €", "match"],
+        ["MediaMarkt", "DJI Mini 3 Pro Drohne", "599,00 €", "wrong_model"],
+        ["Saturn", "DJI Mini 4K Drohne", "299,00 €", "wrong_model"],
+        ["Amazon", "Akku für DJI Mini 4 Pro Intelligent Flight Battery", "65,00 €", "accessory"],
+        ["Amazon", "Landegestell für DJI Mini 4 Pro, faltbar", "12,99 €", "accessory"],
+        ["Cyberport", "DJI Mini 4 Pro - gebraucht, wie neu", "649,00 €", "used"]
+      ]
+    },
+    {
+      "id": "canon-r6-ii-us", "split": "holdout", "query": "canon eos r6 mark ii", "country": "US",
+      "offers": [
+        ["Canon", "Canon EOS R6 Mark II Mirrorless Camera (Body Only)", "$2,199.00", "match"],
+        ["B&H", "Canon EOS R6 Mark II Mirrorless Camera with 24-105mm f/4 Lens", "$3,299.00", "match"],
+        ["Best Buy", "Canon - EOS R6 Mark II Mirrorless Camera with RF 24-105mm F4-7.1 IS STM Lens", "$2,499.00", "match"],
+        ["Adorama", "Canon EOS R6 Mirrorless Camera Body", "$1,799.00", "wrong_model"],
+        ["Amazon", "Canon EOS R8 Mirrorless Camera", "$1,299.00", "wrong_model"],
+        ["Amazon", "LP-E6NH Battery for Canon EOS R6 Mark II", "$79.00", "accessory"],
+        ["KEH", "Canon EOS R6 Mark II Body - Used Excellent", "$1,850.00", "used"]
+      ]
+    }
+  ],
+  "price_parsing": [
+    ["$12.99", "USD", 12.99, "USD"],
+    ["€ 12,99", "EUR", 12.99, "EUR"],
+    ["1.299,00 €", "EUR", 1299.0, "EUR"],
+    ["1 299,00 €", "EUR", 1299.0, "EUR"],
+    ["1.299 €", "EUR", 1299.0, "EUR"],
+    ["$1,299.00", "USD", 1299.0, "USD"],
+    ["$1,299", "CAD", 1299.0, "CAD"],
+    ["S$1,299.00", "SGD", 1299.0, "SGD"],
+    ["A$ 899", "AUD", 899.0, "AUD"],
+    ["US$ 20", "EUR", 20.0, "USD"],
+    ["₹1,50,000", "INR", 150000.0, "INR"],
+    ["Rs. 999", "INR", 999.0, "INR"],
+    ["¥150,000", "JPY", 150000.0, "JPY"],
+    ["AED 499", "AED", 499.0, "AED"],
+    ["CHF 1'299.00", "CHF", 1299.0, "CHF"],
+    ["1.299 kr", "SEK", 1299.0, "SEK"],
+    ["2 195 kr", "SEK", 2195.0, "SEK"],
+    ["499 zł", "PLN", 499.0, "PLN"],
+    ["£5", "GBP", 5.0, "GBP"],
+    ["$449 2 offers", "USD", 449.0, "USD"],
+    ["$12.99.", "USD", 12.99, "USD"],
+    ["From $399.00", "USD", 399.0, "USD"],
+    ["$0.10", "USD", null, null],
+    ["$250,000,000", "USD", null, null],
+    ["free", "USD", null, null]
+  ],
+  "shipping_parsing": [
+    ["Free delivery", "USD", 0.0],
+    ["Gratis verzending", "EUR", 0.0],
+    ["Kostenloser Versand", "EUR", 0.0],
+    ["Livraison gratuite", "EUR", 0.0],
+    ["+ $4.99 shipping", "USD", 4.99],
+    ["Delivery £3.95", "GBP", 3.95],
+    ["Verzendkosten € 5,95", "EUR", 5.95],
+    ["zzgl. 4,99 € Versand", "EUR", 4.99],
+    ["Delivery by Fri, Nov 14", "USD", null],
+    ["4.5 stars (1,200)", "USD", null],
+    ["", "USD", null]
+  ]
+}

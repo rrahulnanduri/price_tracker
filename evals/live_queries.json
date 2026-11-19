@@ -1,0 +1,13 @@
+{
+  "_comment": "Queries for `python -m evals.run --live`. price_range is a deliberately wide band in the region's currency: a result outside it is almost certainly the wrong product. must_include tokens must all appear in a result's title. Adjust the bands when prices move.",
+  "queries": [
+    {"query": "playstation 5 console", "country": "US", "price_range": [300, 900], "must_include": ["playstation", "5"]},
+    {"query": "iphone 15 128gb", "country": "US", "price_range": [400, 1100], "must_include": ["iphone", "15"]},
+    {"query": "airpods pro 2", "country": "GB", "price_range": [120, 320], "must_include": ["airpods", "pro"]},
+    {"query": "nintendo switch oled", "country": "NL", "price_range": [220, 450], "must_include": ["switch", "oled"]},
+    {"query": "samsung galaxy s24 ultra 256gb", "country": "DE", "price_range": [600, 1600], "must_include": ["s24", "ultra"]},
+    {"query": "dyson v15 detect", "country": "GB", "price_range": [350, 900], "must_include": ["dyson", "v15"]},
+    {"query": "lego 75192", "country": "FR", "price_range": [550, 1100], "must_include": ["75192"]},
+    {"query": "kindle paperwhite", "country": "IN", "price_range": [9000, 30000], "must_include": ["kindle", "paperwhite"]}
+  ]
+}

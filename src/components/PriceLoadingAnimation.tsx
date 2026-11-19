@@ -15,11 +15,12 @@ export function PriceLoadingAnimation() {
 
   useEffect(() => {
     const stages = [
-      { progress: 20, status: "[ SCANNING WEBSITES ]" },
+      { progress: 20, status: "[ CONTACTING SOURCE ]" },
       { progress: 40, status: "[ EXTRACTING PRICES ]" },
-      { progress: 60, status: "[ ANALYZING DATA ]" },
+      { progress: 60, status: "[ MATCHING PRODUCT ]" },
       { progress: 80, status: "[ SORTING RESULTS ]" },
-      { progress: 100, status: "[ COMPLETE ]" },
+      // Holds here until the response arrives: a live fetch can take a while.
+      { progress: 95, status: "[ WAITING FOR SOURCE ]" },
     ]
 
     let currentStage = 0
