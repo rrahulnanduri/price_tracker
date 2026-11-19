@@ -103,6 +103,7 @@ class Offer:
     relevance: float = 0.0
     flags: list[str] = field(default_factory=list)
     extracted_by: str = "rules"          # "rules" or "ai" (the LLM extraction fallback)
+    source: str = ""                     # which price source found it, e.g. "google", "kieskeurig"
 
     @property
     def total(self) -> float:
@@ -121,8 +122,23 @@ class Offer:
             "condition": self.condition,
             "relevance": round(self.relevance, 2),
             "extracted_by": self.extracted_by,
+            "source": self.source,
             "ai_checked": any(f in self.flags for f in ("ai_confirmed", "ai_rejected", "ai_agreed")),
         }
+
+
+_DOMAIN_SUFFIX = re.compile(
+    r"\.(?:com|net|org|nl|be|de|at|ch|fr|es|it|se|pl|ie|in|jp|sg|ae|ca|au|uk"
+    r"|co\.uk|co\.jp|com\.au|com\.be)$"
+)
+
+
+def store_key(store: str) -> str:
+    """One key per shop across sources: "Nedgame.nl", "NEDGAME" and "www.nedgame.nl" match."""
+    key = fold(store).strip()
+    key = re.sub(r"^(?:https?://)?(?:www\.)?", "", key)
+    key = _DOMAIN_SUFFIX.sub("", key)
+    return re.sub(r"[^a-z0-9]", "", key)
 
 
 def fold(text: str) -> str:
@@ -320,7 +336,7 @@ def select_offers(
     # One offer per store: in stock before out of stock, then cheapest total.
     best: dict[str, Offer] = {}
     for offer in kept:
-        key = fold(offer.store)
+        key = store_key(offer.store)
         if key not in best or _sort_key(offer) < _sort_key(best[key]):
             best[key] = offer
 

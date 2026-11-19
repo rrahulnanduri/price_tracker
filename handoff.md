@@ -148,6 +148,51 @@ To get real numbers, with a model configured:
 python -m evals.run --ai -v
 ```
 
+### 9. Wider coverage: more sources, every seller, every store
+
+Asked for after "the whole point is to find any and all local shops". Literal
+"every website" is not achievable (nothing indexes every shop); the practical
+route is to pool several aggregators.
+
+- **Multi-source search** (`providers/multi.py`): the main source and every
+  comparison site for the region run at once. A failing source is reported,
+  not fatal; the search fails only if all fail. Offers are pooled and
+  `matching.store_key` merges the same shop across sources ("Nedgame.nl" =
+  "NEDGAME"), keeping its cheapest offer.
+- **Comparison sites** (`providers/comparison.py`): Kieskeurig (NL, BE) and
+  StaticICE (AU). Kieskeurig: the results page names products, the best three
+  matches are opened, and every seller is read from the schema.org `Offer`
+  data on each product page (`schema_offers`, generic, works for any site that
+  publishes it). StaticICE lists offers directly with the shop's own URL.
+  Requests identify as `PriceTracker/1.0` and wait 1 s between pages on a site.
+- **Sites considered and left out:** Beslist (NL) and others block non-browser
+  clients (405/403) and were not disguised as a browser; idealo, Geizhals,
+  PriceSpy/Prisjakt, PriceRunner, Trovaprezzi likewise. Tweakers redirects to
+  a cookie-consent wall, which the app does not accept on anyone's behalf.
+  Toppreise (CH) and Ceneo (PL) build prices in the browser; Kakaku (JP)
+  needs Shift_JIS handling. These are the next candidates, most needing
+  Scrapling's browser on a machine where it runs.
+- **Every seller via SerpApi** (`providers/serpapi.py`): for the best-matching
+  results (score ≥ 0.7, up to `SERPAPI_SELLER_LOOKUPS`, default 2), the
+  `google_immersive_product` engine with `more_stores=true` returns every
+  store for that exact product. Not run against SerpApi (no key); tested with
+  payloads shaped like SerpApi's documentation.
+- **No cap of 8:** `MAX_RESULTS` defaults to 50; the UI shows 8 and a "show
+  all N stores" button. Each offer says which source found it, and the
+  results list every source with ✓/✗.
+- `PRICE_PROVIDER=sites` uses only the comparison sites (works with no key or
+  browser, but only for NL, BE and AU).
+- Demo mode now links to real retailers' own search pages per region (prices
+  remain made up and labelled).
+
+**Verified live from this machine** (real network, real sites, 2026-11-19):
+Switch OLED NL: 8 shops (€313.87 to €411.22); Sony WH-1000XM5 NL: 12 shops;
+AirPods Pro 2 BE: 3 shops; Switch OLED AU: 3 shops with direct shop links,
+cases filtered out. Also checked in the running app: 12 stores, "show all",
+per-offer source, sources line with Google shown unavailable. Test fixtures in
+`tests/fixtures/` are trimmed excerpts of those real pages (links, seller data
+and result rows only; no reviews).
+
 ## Evals
 
 `python -m evals.run` scores the ranking pipeline on 30 hand-labelled cases

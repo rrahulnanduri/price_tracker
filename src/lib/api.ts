@@ -16,6 +16,8 @@ export interface Offer {
   extracted_by: "rules" | "ai";
   /** whether the LLM gave a second opinion on this listing */
   ai_checked: boolean;
+  /** which price source found this offer, e.g. "google", "kieskeurig" */
+  source: string;
 }
 
 export interface Watch {
@@ -34,7 +36,16 @@ export interface Watch {
   last_error: string | null;
 }
 
+export interface SourceReport {
+  name: string;
+  ok: boolean;
+  offers: number;
+  error: string | null;
+}
+
 export interface SearchResponse {
+  /** every source asked for this search, and whether it answered */
+  sources: SourceReport[];
   product: string;
   country: string;
   region: string;

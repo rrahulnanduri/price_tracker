@@ -11,6 +11,7 @@ import httpx
 from .config import Region, Settings
 from .matching import score_offers, select_offers
 from .providers import Provider
+from .providers.multi import SourceReport
 from .storage import Storage, now_iso, query_key
 
 logger = logging.getLogger(__name__)
@@ -82,8 +83,12 @@ class SearchService:
                 if client is not None:
                     self._limiter.check(client)
                 async with self._fetch_slots:
-                    raw = await self.provider.search(product, region)
-                result = await self._build_result(product, region, raw)
+                    if hasattr(self.provider, "search_with_report"):
+                        raw, reports = await self.provider.search_with_report(product, region)
+                    else:
+                        raw = await self.provider.search(product, region)
+                        reports = None
+                result = await self._build_result(product, region, raw, reports)
                 if result["results"]:
                     self._cache[key] = (self._clock(), result)
                 return result
@@ -91,8 +96,12 @@ class SearchService:
             if not lock.locked():
                 self._in_flight.pop(key, None)
 
-    async def _build_result(self, product: str, region: Region, raw: list) -> dict:
+    async def _build_result(self, product: str, region: Region, raw: list, reports=None) -> dict:
         min_relevance = self.settings.min_relevance
+        for offer in raw:
+            offer.source = offer.source or self.provider.name
+        if reports is None:
+            reports = [SourceReport(self.provider.name, ok=True, offers=len(raw))]
         score_offers(product, raw)
         ai_changed = None
         if self.llm is not None and self.llm.options.judge and raw:
@@ -121,6 +130,8 @@ class SearchService:
             # How AI was involved: None if it was not asked; otherwise listings it changed.
             "ai_extracted": any(o.extracted_by == "ai" for o in raw),
             "ai_changed": ai_changed,
+            # Each source asked, whether it answered, and how many listings it returned.
+            "sources": [report.to_dict() for report in reports],
         }
 
     def _after_observation(self, product: str, region: Region, cheapest: dict) -> None:

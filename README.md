@@ -48,8 +48,28 @@ PRICE_PROVIDER=demo uvicorn backend.main:app --port 8000
 | --- | --- | --- |
 | `auto` (default) | `serpapi` if `SERPAPI_KEY` is set, otherwise `google` | |
 | `google` | Scrapes Google Shopping with Scrapling | `scrapling install` |
-| `serpapi` | SerpApi's Google Shopping API: structured, more reliable | `SERPAPI_KEY` |
-| `demo` | Deterministic made-up offers | nothing |
+| `serpapi` | SerpApi's Google Shopping API, plus every seller of the best matches | `SERPAPI_KEY` |
+| `sites` | Only the regional comparison sites below; no Google | nothing |
+| `demo` | Made-up prices, real store-search links | nothing |
+
+Every mode except `demo` also queries regional price-comparison sites
+(`COMPARISON_SITES=true`), all sources at once. Offers are pooled, one per shop
+at its cheapest, and the results say which source found each one and which
+sources were unavailable.
+
+| Site | Regions | How |
+| --- | --- | --- |
+| Kieskeurig | NL, BE | opens the best-matching product pages and reads every seller from their schema.org data |
+| StaticICE | AU | reads the results list, linking straight to each shop |
+
+Sites were added only if they allow it in robots.txt and serve pages to a
+client that honestly identifies itself; sites that block non-browser clients
+(Beslist, idealo, Geizhals, PriceSpy, PriceRunner) are left out rather than
+disguised as a browser.
+
+With SerpApi, `SERPAPI_SELLER_LOOKUPS` (default 2) opens Google's product page
+for the best-matching results to list every store selling that exact item.
+Each lookup costs one SerpApi search.
 
 All settings are environment variables, listed with defaults in
 [.env.example](.env.example).

@@ -70,8 +70,10 @@ def _bool(name: str, default: bool) -> bool:
 
 @dataclass(frozen=True)
 class Settings:
-    provider: str                 # "auto" | "google" | "serpapi" | "demo"
+    provider: str                 # "auto" | "google" | "serpapi" | "sites" | "demo"
     serpapi_key: str
+    serpapi_seller_lookups: int   # product pages opened for their full seller list (1 SerpApi credit each)
+    comparison_sites: bool        # add regional price-comparison sites as extra sources
     db_path: str
     cors_origins: list[str]
     cache_ttl_seconds: int        # how long a search result is reused
@@ -94,6 +96,8 @@ def load_settings() -> Settings:
     return Settings(
         provider=os.environ.get("PRICE_PROVIDER", "auto").strip().lower(),
         serpapi_key=os.environ.get("SERPAPI_KEY", "").strip(),
+        serpapi_seller_lookups=max(0, _int("SERPAPI_SELLER_LOOKUPS", 2)),
+        comparison_sites=_bool("COMPARISON_SITES", True),
         db_path=os.environ.get("PRICE_DB", "price_tracker.db"),
         cors_origins=[o.strip() for o in origins.split(",") if o.strip()],
         cache_ttl_seconds=_int("CACHE_TTL_SECONDS", 900),
@@ -101,7 +105,7 @@ def load_settings() -> Settings:
         max_concurrent_fetches=max(1, _int("MAX_CONCURRENT_FETCHES", 2)),
         refresh_hours=_float("REFRESH_HOURS", 6),
         min_relevance=_float("MIN_RELEVANCE", 0.7),
-        max_results=_int("MAX_RESULTS", 8),
+        max_results=_int("MAX_RESULTS", 50),
         alert_webhook_url=os.environ.get("ALERT_WEBHOOK_URL", "").strip(),
         llm_model=os.environ.get("LLM_MODEL", "").strip(),
         llm_api_key=os.environ.get("LLM_API_KEY", "").strip(),

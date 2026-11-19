@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
-import type { Offer, SearchResponse } from "@/lib/api";
+import type { Offer, SearchResponse, SourceReport } from "@/lib/api";
 import { INK } from "@/lib/chart";
 import { formatAge, formatMoney } from "@/lib/format";
 import { PanelHeader } from "./Panel";
@@ -21,9 +21,47 @@ function shippingNote(offer: Offer, currency: string, locale: string): string | 
   return `INCL. ${formatMoney(offer.shipping_cost, currency, locale)} SHIPPING`;
 }
 
+const INITIAL_VISIBLE = 8;
+
+const SOURCE_LABELS: Record<string, string> = {
+  google: "GOOGLE SHOPPING",
+  serpapi: "GOOGLE SHOPPING (SERPAPI)",
+  kieskeurig: "KIESKEURIG",
+  staticice: "STATICICE",
+  demo: "DEMO",
+};
+
+const sourceLabel = (name: string) => SOURCE_LABELS[name] ?? name.toUpperCase();
+
+function SourcesLine({ sources }: { sources: SourceReport[] }) {
+  if (sources.length === 0) return null;
+  return (
+    <span>
+      SOURCES:{" "}
+      {sources.map((source, index) => (
+        <span key={source.name} title={source.error ?? `${source.offers} listings`}>
+          {index > 0 && " · "}
+          {sourceLabel(source.name)} {source.ok ? `✓ ${source.offers}` : "✗ UNAVAILABLE"}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: ResultsPanelProps) {
   const results = data?.results ?? [];
-  const status = isLoading ? "SCANNING..." : data ? `${results.length} FOUND` : "AWAITING INPUT";
+  // Which search the "show all" choice belongs to, so a new search starts collapsed again.
+  const [expandedFor, setExpandedFor] = useState<string | null>(null);
+  const searchKey = data ? `${data.product}|${data.country}|${data.fetched_at}` : "";
+  const expanded = expandedFor === searchKey;
+  const visible = expanded ? results : results.slice(0, INITIAL_VISIBLE);
+  const hidden = results.length - visible.length;
+  const multiSource = (data?.sources.length ?? 0) > 1;
+  const status = isLoading
+    ? "SCANNING..."
+    : data
+      ? `${results.length} STORE${results.length === 1 ? "" : "S"}`
+      : "AWAITING INPUT";
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -34,7 +72,7 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
           <PriceLoadingAnimation />
         ) : data ? (
           <ol className="flex flex-col gap-3 w-full max-h-full overflow-y-auto custom-scrollbar pr-1">
-            {results.map((offer, index) => {
+            {visible.map((offer, index) => {
               const shipping = shippingNote(offer, data.currency, data.locale);
               return (
                 <li key={offer.store}>
@@ -75,6 +113,7 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
                     <div className="flex justify-between gap-2 text-[10px] tracking-wider opacity-60">
                       <span>{shipping ?? "SHIPPING NOT STATED"}</span>
                       <span title="How closely this listing matches your search">
+                        {multiSource && offer.source && `VIA ${sourceLabel(offer.source)} · `}
                         {offer.extracted_by === "ai" && "AI-READ · "}
                         MATCH {Math.round(offer.relevance * 100)}%
                       </span>
@@ -83,6 +122,17 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
                 </li>
               );
             })}
+            {(hidden > 0 || expanded) && results.length > INITIAL_VISIBLE && (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setExpandedFor(expanded ? null : searchKey)}
+                  className="w-full border border-ink/50 py-2 tracking-[0.2em] text-[10px] hover:bg-ink hover:text-paper transition-colors cursor-pointer"
+                >
+                  {expanded ? "SHOW FEWER" : `SHOW ALL ${results.length} STORES (+${hidden})`}
+                </button>
+              </li>
+            )}
           </ol>
         ) : (
           <div className="opacity-40 text-[11px] tracking-[0.3em] py-10">NO DATA</div>
@@ -99,7 +149,16 @@ export function ResultsPanel({ data, isLoading, colors, onRefresh, children }: R
                 ? `${data.rejected} OF ${data.considered} LISTINGS FILTERED OUT · `
                 : ""}
               CHECKED {formatAge(data.fetched_at)}
-              {data.provider === "demo" && <strong className="ml-2">· DEMO DATA</strong>}
+              <br />
+              <SourcesLine sources={data.sources} />
+              {data.provider === "demo" && (
+                <strong
+                  className="ml-2"
+                  title="Prices are made up for testing. Links open each store's real search for this product."
+                >
+                  · DEMO DATA: PRICES MADE UP, LINKS GO TO STORE SEARCH
+                </strong>
+              )}
               {(data.ai_extracted || data.ai_changed !== null) && (
                 <>
                   <br />
