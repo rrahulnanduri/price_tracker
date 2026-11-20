@@ -1,0 +1,19 @@
+{
+  "_comment": "Saved results pages for `python -m evals.run --ai`, scoring the scraper's selectors against the LLM extraction fallback. expected lists every priced offer on the page as [store, price]; matching (is it the product?) is scored separately, so accessories are expected here too. These pages are hand-written, not captured from Google: replace or add real captures (save page.html_content) when you have them.",
+  "pages": [
+    {
+      "file": "known_layout.html",
+      "query": "playstation 5 console",
+      "country": "US",
+      "note": "Uses the class names the selectors know; both methods should get everything.",
+      "expected": [["Best Buy", 499.99], ["Walmart", 449.0], ["Target", 559.99], ["Amazon", 69.0]]
+    },
+    {
+      "file": "new_layout.html",
+      "query": "nintendo switch oled",
+      "country": "NL",
+      "note": "A table layout with no known class names: the case the fallback exists for.",
+      "expected": [["Bol", 319.0], ["Coolblue", 329.0], ["MediaMarkt", 359.0], ["Amazon", 14.95]]
+    }
+  ]
+}

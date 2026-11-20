@@ -12,6 +12,12 @@ export interface Offer {
   condition: string;
   /** 0..1: how confident the matcher is that this is the searched product */
   relevance: number;
+  /** "ai" when the page was read by the LLM fallback instead of the scraper's selectors */
+  extracted_by: "rules" | "ai";
+  /** whether the LLM gave a second opinion on this listing */
+  ai_checked: boolean;
+  /** which price source found this offer, e.g. "google", "kieskeurig" */
+  source: string;
 }
 
 export interface Watch {
@@ -30,7 +36,16 @@ export interface Watch {
   last_error: string | null;
 }
 
+export interface SourceReport {
+  name: string;
+  ok: boolean;
+  offers: number;
+  error: string | null;
+}
+
 export interface SearchResponse {
+  /** every source asked for this search, and whether it answered */
+  sources: SourceReport[];
   product: string;
   country: string;
   region: string;
@@ -43,6 +58,10 @@ export interface SearchResponse {
   /** listings the source returned before relevance filtering */
   considered: number;
   rejected: number;
+  /** true if any listing was read by the LLM fallback */
+  ai_extracted: boolean;
+  /** null if the LLM was not asked; otherwise how many listings it moved in or out */
+  ai_changed: number | null;
   watch: Watch | null;
 }
 
@@ -66,6 +85,7 @@ export interface Meta {
   refresh_hours: number;
   cache_ttl_seconds: number;
   regions: Region[];
+  ai: { model: string | null; fallback: boolean; judge: boolean };
 }
 
 export class ApiError extends Error {

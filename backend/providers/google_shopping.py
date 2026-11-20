@@ -175,6 +175,10 @@ def extract_offers(page, region: Region) -> list[Offer]:
 class GoogleShoppingProvider:
     name = "google"
 
+    def __init__(self, llm=None):
+        # Optional backend.llm.LLMHelper: reads the page when the selectors find nothing.
+        self.llm = llm
+
     async def search(self, product: str, region: Region) -> list[Offer]:
         try:
             # Imported here so the rest of the backend loads without a browser install.
@@ -194,4 +198,11 @@ class GoogleShoppingProvider:
             raise ProviderError(f"Could not load Google Shopping: {type(exc).__name__}") from exc
 
         check_not_blocked(page)
-        return extract_offers(page, region)
+        offers = extract_offers(page, region)
+        if not offers and self.llm is not None and self.llm.options.fallback:
+            # The page loaded but nothing matched the selectors: most likely a layout change.
+            from ..llm import page_text
+
+            html = getattr(page, "html_content", "") or ""
+            offers = await self.llm.extract_offers(page_text(html), product, region)
+        return offers

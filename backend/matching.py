@@ -102,6 +102,8 @@ class Offer:
     condition: str = "new"
     relevance: float = 0.0
     flags: list[str] = field(default_factory=list)
+    extracted_by: str = "rules"          # "rules" or "ai" (the LLM extraction fallback)
+    source: str = ""                     # which price source found it, e.g. "google", "kieskeurig"
 
     @property
     def total(self) -> float:
@@ -119,7 +121,24 @@ class Offer:
             "in_stock": self.in_stock,
             "condition": self.condition,
             "relevance": round(self.relevance, 2),
+            "extracted_by": self.extracted_by,
+            "source": self.source,
+            "ai_checked": any(f in self.flags for f in ("ai_confirmed", "ai_rejected", "ai_agreed")),
         }
+
+
+_DOMAIN_SUFFIX = re.compile(
+    r"\.(?:com|net|org|nl|be|de|at|ch|fr|es|it|se|pl|ie|in|jp|sg|ae|ca|au|uk"
+    r"|co\.uk|co\.jp|com\.au|com\.be)$"
+)
+
+
+def store_key(store: str) -> str:
+    """One key per shop across sources: "Nedgame.nl", "NEDGAME" and "www.nedgame.nl" match."""
+    key = fold(store).strip()
+    key = re.sub(r"^(?:https?://)?(?:www\.)?", "", key)
+    key = _DOMAIN_SUFFIX.sub("", key)
+    return re.sub(r"[^a-z0-9]", "", key)
 
 
 def fold(text: str) -> str:
@@ -274,22 +293,27 @@ def _key_terms(query: str, offers: list["Offer"]) -> frozenset[str]:
     )
 
 
-def rank_offers(
+def score_offers(query: str, offers: list[Offer]) -> None:
+    """Set relevance, flags and condition on every offer (in place)."""
+    key_terms = _key_terms(query, offers)
+    for offer in offers:
+        offer.relevance, offer.flags = score_relevance(query, offer.title, offer.store, key_terms)
+        offer.condition = detect_condition(offer.title)
+
+
+def select_offers(
     query: str,
     offers: list[Offer],
     *,
     min_relevance: float = DEFAULT_MIN_RELEVANCE,
     limit: int = 8,
 ) -> tuple[list[Offer], list[Offer]]:
-    """Return (ranked, rejected): ranked is one offer per store, cheapest total first."""
+    """Return (ranked, rejected) from already-scored offers: one per store, cheapest total first."""
     wants_condition = detect_condition(query)
     kept: list[Offer] = []
     rejected: list[Offer] = []
 
-    key_terms = _key_terms(query, offers)
     for offer in offers:
-        offer.relevance, offer.flags = score_relevance(query, offer.title, offer.store, key_terms)
-        offer.condition = detect_condition(offer.title)
         if offer.relevance < min_relevance:
             rejected.append(offer)
         elif (offer.condition == "new") != (wants_condition == "new"):
@@ -312,11 +336,54 @@ def rank_offers(
     # One offer per store: in stock before out of stock, then cheapest total.
     best: dict[str, Offer] = {}
     for offer in kept:
-        key = fold(offer.store)
+        key = store_key(offer.store)
         if key not in best or _sort_key(offer) < _sort_key(best[key]):
             best[key] = offer
 
     return sorted(best.values(), key=_sort_key)[:limit], rejected
+
+
+def rank_offers(
+    query: str,
+    offers: list[Offer],
+    *,
+    min_relevance: float = DEFAULT_MIN_RELEVANCE,
+    limit: int = 8,
+) -> tuple[list[Offer], list[Offer]]:
+    """Score then select, with the rules alone (no AI second opinion)."""
+    score_offers(query, offers)
+    return select_offers(query, offers, min_relevance=min_relevance, limit=limit)
+
+
+# Offers the rules flagged for these reasons are left alone by the AI second
+# opinion: a mismatched model number or an accessory is a confident call.
+HARD_FLAGS = {"wrong_model", "accessory", "empty"}
+JUDGE_FLOOR = 0.35   # below this the rules are confident it is a different product
+
+
+def judge_candidates(offers: list[Offer]) -> list[Offer]:
+    """Offers worth a second opinion: plausible matches the rules were not certain about."""
+    return [o for o in offers if o.relevance >= JUDGE_FLOOR and not (set(o.flags) & HARD_FLAGS)]
+
+
+def apply_verdicts(candidates: list[Offer], verdicts: dict[int, bool], min_relevance: float) -> int:
+    """Apply same-product verdicts (keyed by candidate index). Returns how many changed an outcome."""
+    changed = 0
+    for index, same in verdicts.items():
+        if not 0 <= index < len(candidates):
+            continue
+        offer = candidates[index]
+        kept_before = offer.relevance >= min_relevance
+        if same and not kept_before:
+            offer.relevance = min_relevance
+            offer.flags.append("ai_confirmed")
+        elif not same and kept_before:
+            offer.relevance = 0.0
+            offer.flags.append("ai_rejected")
+        else:
+            offer.flags.append("ai_agreed")
+        changed += kept_before != (offer.relevance >= min_relevance)
+    return changed
 
 
 def _sort_key(offer: Offer) -> tuple:

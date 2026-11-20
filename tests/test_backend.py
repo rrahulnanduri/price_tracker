@@ -106,11 +106,15 @@ def test_get_region():
 def test_build_provider_selection():
     base = load_settings()
     pick = lambda **kw: build_provider(dataclasses.replace(base, **kw)).name  # noqa: E731
-    assert pick(provider="auto", serpapi_key="") == "google"
-    assert pick(provider="auto", serpapi_key="k") == "serpapi"
-    assert pick(provider="demo") == "demo"
+    assert pick(provider="auto", serpapi_key="") == "google+sites"
+    assert pick(provider="auto", serpapi_key="k") == "serpapi+sites"
+    assert pick(provider="auto", serpapi_key="k", comparison_sites=False) == "serpapi"
+    assert pick(provider="sites") == "sites"
+    assert pick(provider="demo") == "demo"     # made-up prices are never mixed with real ones
     with pytest.raises(ValueError):
         pick(provider="bing")
+    with pytest.raises(ValueError):
+        pick(provider="sites", comparison_sites=False)
 
 
 def test_build_search_url_and_links():
@@ -188,6 +192,19 @@ def test_demo_provider_is_deterministic_and_noisy():
     ranked, rejected = rank_offers("acme widget 3000", first)
     assert len(ranked) == 6 and len(rejected) == 3     # case, cable and refurbished dropped
     assert asyncio.run(provider.search("nothing", US)) == []
+
+
+def test_demo_links_are_real_store_searches():
+    provider = DemoProvider(today=lambda: date(2026, 1, 1))
+    for code, region in REGIONS.items():
+        offers = asyncio.run(provider.search("ps5 & controller", region))
+        assert offers, code
+        for o in offers:
+            assert o.url.startswith("https://") and "example.com" not in o.url, (code, o.url)
+            assert "ps5" in o.url and " " not in o.url and "&controller" not in o.url, (code, o.url)
+    nl = asyncio.run(provider.search("nintendo switch oled", REGIONS["NL"]))
+    assert {o.store for o in nl} == {"BOL", "COOLBLUE", "MEDIAMARKT", "AMAZON.NL"}
+    assert nl[0].url == "https://www.bol.com/nl/nl/s/?searchtext=nintendo+switch+oled"
 
 
 # -- service -------------------------------------------------------------------
