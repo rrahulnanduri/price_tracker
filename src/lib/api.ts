@@ -98,13 +98,22 @@ export class ApiError extends Error {
 }
 
 const API_BASE = (import.meta.env?.VITE_API_URL ?? "http://localhost:8000").replace(/\/$/, "");
+/** Matches the backend's API_TOKEN, when one is set. */
+const API_TOKEN: string | undefined = import.meta.env?.VITE_API_TOKEN;
+
+function headers(withBody: boolean): Record<string, string> {
+  return {
+    ...(withBody ? { "Content-Type": "application/json" } : {}),
+    ...(API_TOKEN ? { Authorization: `Bearer ${API_TOKEN}` } : {}),
+  };
+}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...init,
-      headers: init.body ? { "Content-Type": "application/json" } : undefined,
+      headers: headers(Boolean(init.body)),
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") throw err;
@@ -155,7 +164,7 @@ export async function searchPricesStream(
   try {
     res = await fetch(`${API_BASE}/api/search/stream`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers(true),
       body: JSON.stringify(body),
       signal: options.signal,
     });

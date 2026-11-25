@@ -1,10 +1,12 @@
 import asyncio
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -71,7 +73,16 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
             task.cancel()
         storage.close()
 
-    app = FastAPI(title="Price Tracker", lifespan=lifespan)
+    def require_token(request: Request) -> None:
+        """With API_TOKEN set, every /api route needs it as a bearer token."""
+        if not settings.api_token or not request.url.path.startswith("/api/"):
+            return
+        scheme, _, given = request.headers.get("authorization", "").partition(" ")
+        if scheme.lower() != "bearer" or not secrets.compare_digest(given.encode(), settings.api_token.encode()):
+            raise HTTPException(status_code=401, detail="Missing or wrong API token.",
+                                headers={"WWW-Authenticate": "Bearer"})
+
+    app = FastAPI(title="Price Tracker", lifespan=lifespan, dependencies=[Depends(require_token)])
     app.state.service = service
     app.add_middleware(
         CORSMiddleware,
@@ -79,6 +90,8 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Outermost: a request naming any other host (a DNS-rebinding page) is refused before routing.
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
     def search_error(exc: Exception, product: str, region: Region) -> HTTPException:
         """The HTTP error a failed search should produce."""
@@ -170,7 +183,7 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.get("/api/history")
-    def history(product: str, country: str = DEFAULT_REGION):
+    def history(product: str = Query(max_length=200), country: str = DEFAULT_REGION):
         region = _region_or_422(country)
         return {"product": product, "country": region.code, "currency": region.currency,
                 "points": storage.history(_product_or_422(product), region.code)}
@@ -182,6 +195,9 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
     @app.post("/api/watchlist", status_code=201)
     def add_watch(req: WatchRequest):
         product, region = _product_or_422(req.product), _region_or_422(req.country)
+        if storage.find_watch(product, region.code) is None and storage.count_watches() >= settings.max_watches:
+            raise HTTPException(status_code=409,
+                                detail=f"The watchlist is full ({settings.max_watches}). Remove a product first.")
         return storage.add_watch(product, region.code, req.target_price)
 
     @app.patch("/api/watchlist/{watch_id}")

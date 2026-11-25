@@ -14,7 +14,7 @@ import sys
 import urllib.parse
 
 from ..config import Region
-from ..matching import Offer
+from ..matching import Offer, safe_url
 from ..pricing import PRICE_PATTERN, parse_price
 from .base import (
     ProviderBlocked,
@@ -182,8 +182,8 @@ def _find_card(price_el, currency: str):
 def _find_link(card) -> str:
     for anchor in card.find_all("a"):
         href = anchor.attrib.get("href", "")
-        if href and not href.startswith("#"):
-            return resolve_link(href)
+        if href and not href.startswith("#") and (link := safe_url(resolve_link(href))):
+            return link
     return ""
 
 

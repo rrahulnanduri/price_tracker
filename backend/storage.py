@@ -150,6 +150,10 @@ class Storage:
     def find_watch(self, product: str, country: str) -> dict | None:
         return self._one_watch("w.query_key = ? AND w.country = ?", (query_key(product), country))
 
+    def count_watches(self) -> int:
+        with self._lock:
+            return self._db.execute("SELECT COUNT(*) FROM watchlist").fetchone()[0]
+
     def list_watches(self) -> list[dict]:
         return self._watches("1 = 1", ())
 

@@ -155,12 +155,24 @@ class Site:
     find_products: Callable[[str, str], list[tuple[str, str]]] | None = None
 
 
+KIESKEURIG_HOSTS = frozenset({"www.kieskeurig.nl", "www.kieskeurig.be"})
+
+
+def same_site(url: str, hosts: frozenset[str]) -> bool:
+    """True for an https URL on one of the site's own hosts. Product links found on a page are
+    fetched by the backend, so a link elsewhere (e.g. protocol-relative "//other.host/...") is skipped."""
+    parts = urllib.parse.urlsplit(url)
+    return parts.scheme == "https" and parts.hostname in hosts and parts.port is None
+
+
 def kieskeurig_products(html: str, page_url: str) -> list[tuple[str, str]]:
     """Product pages in a results page, titled by their best link text or else their URL slug."""
     titles: dict[str, str] = {}
     pattern = r'<a[^>]+href="((?:https://www\.kieskeurig\.(?:nl|be))?/[^"]*/product/\d+-[^"#?]+)"[^>]*>(.*?)</a>'
     for href, text in re.findall(pattern, html, re.S):
         url = urllib.parse.urljoin(page_url, href)
+        if not same_site(url, KIESKEURIG_HOSTS):
+            continue
         slug = href.rsplit("/", 1)[-1].split("-", 1)[-1].replace("-", " ")
         text = html_lib.unescape(re.sub(r"<[^>]+>|\s+", " ", text)).strip()
         # Many links say only "Bekijk product" or wrap an image; the slug names the product.

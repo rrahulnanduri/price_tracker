@@ -76,6 +76,9 @@ class Settings:
     comparison_sites: bool        # add regional price-comparison sites as extra sources
     db_path: str
     cors_origins: list[str]
+    allowed_hosts: list[str]      # Host headers the API answers; blocks DNS rebinding
+    api_token: str                # if set, every /api request needs "Authorization: Bearer <token>"
+    max_watches: int              # watchlist size cap; each entry costs scheduled live fetches
     cache_ttl_seconds: int        # how long a search result is reused
     rate_limit_per_minute: int    # live fetches per client; 0 disables
     max_concurrent_fetches: int
@@ -93,6 +96,7 @@ class Settings:
 
 def load_settings() -> Settings:
     origins = os.environ.get("CORS_ORIGINS", "http://localhost:5173")
+    hosts = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]")
     return Settings(
         provider=os.environ.get("PRICE_PROVIDER", "auto").strip().lower(),
         serpapi_key=os.environ.get("SERPAPI_KEY", "").strip(),
@@ -100,6 +104,9 @@ def load_settings() -> Settings:
         comparison_sites=_bool("COMPARISON_SITES", True),
         db_path=os.environ.get("PRICE_DB", "price_tracker.db"),
         cors_origins=[o.strip() for o in origins.split(",") if o.strip()],
+        allowed_hosts=[h.strip() for h in hosts.split(",") if h.strip()],
+        api_token=os.environ.get("API_TOKEN", "").strip(),
+        max_watches=max(1, _int("MAX_WATCHES", 100)),
         cache_ttl_seconds=_int("CACHE_TTL_SECONDS", 900),
         rate_limit_per_minute=_int("RATE_LIMIT_PER_MINUTE", 10),
         max_concurrent_fetches=max(1, _int("MAX_CONCURRENT_FETCHES", 2)),

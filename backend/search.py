@@ -4,7 +4,7 @@ import asyncio
 import logging
 import threading
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 
 import httpx
 
@@ -27,25 +27,40 @@ class RateLimiter:
     """Sliding one-minute window per client. Only live fetches count, not cache hits."""
 
     WINDOW_SECONDS = 60
+    SWEEP_AT = 1000   # clients tracked before idle ones are forgotten
 
     def __init__(self, per_minute: int, clock=time.monotonic):
         self.per_minute = per_minute
         self._clock = clock
-        self._hits: dict[str, deque[float]] = defaultdict(deque)
+        self._hits: dict[str, deque[float]] = {}
+
+    def _expire(self, hits: deque[float], now: float) -> None:
+        while hits and now - hits[0] >= self.WINDOW_SECONDS:
+            hits.popleft()
 
     def check(self, client: str) -> None:
         if self.per_minute <= 0:
             return
         now = self._clock()
-        hits = self._hits[client]
-        while hits and now - hits[0] >= self.WINDOW_SECONDS:
-            hits.popleft()
+        if len(self._hits) >= self.SWEEP_AT:
+            # Drop clients with no hits left in the window, so memory follows active clients only.
+            for key in list(self._hits):
+                self._expire(self._hits[key], now)
+                if not self._hits[key]:
+                    del self._hits[key]
+        hits = self._hits.setdefault(client, deque())
+        self._expire(hits, now)
         if len(hits) >= self.per_minute:
             raise RateLimited(retry_after=max(1, int(self.WINDOW_SECONDS - (now - hits[0])) + 1))
         hits.append(now)
 
+    def tracked_clients(self) -> int:
+        return len(self._hits)
+
 
 class SearchService:
+    MAX_CACHED = 500   # search results kept in memory; least recently used go first
+
     def __init__(self, settings: Settings, provider: Provider, storage: Storage, clock=time.monotonic,
                  llm=None):
         self.settings = settings
@@ -53,7 +68,7 @@ class SearchService:
         self.storage = storage
         self.llm = llm   # optional backend.llm.LLMHelper for a second opinion on matching
         self._clock = clock
-        self._cache: dict[tuple[str, str], tuple[float, dict]] = {}
+        self._cache: OrderedDict[tuple[str, str], tuple[float, dict]] = OrderedDict()
         self._in_flight: dict[tuple[str, str], asyncio.Lock] = {}
         self._fetch_slots = asyncio.Semaphore(settings.max_concurrent_fetches)
         self._limiter = RateLimiter(settings.rate_limit_per_minute, clock)
@@ -61,6 +76,7 @@ class SearchService:
     def _cached(self, key: tuple[str, str]) -> dict | None:
         entry = self._cache.get(key)
         if entry and self._clock() - entry[0] < self.settings.cache_ttl_seconds:
+            self._cache.move_to_end(key)
             return {**entry[1], "cached": True}
         self._cache.pop(key, None)
         return None
@@ -104,11 +120,17 @@ class SearchService:
                         reports = None
                 result = await self._build_result(product, region, raw, reports, emit)
                 if result["results"]:
-                    self._cache[key] = (self._clock(), result)
+                    self._remember(key, result)
                 return result
         finally:
             if not lock.locked():
                 self._in_flight.pop(key, None)
+
+    def _remember(self, key: tuple[str, str], result: dict) -> None:
+        self._cache[key] = (self._clock(), result)
+        self._cache.move_to_end(key)
+        while len(self._cache) > self.MAX_CACHED:
+            self._cache.popitem(last=False)
 
     async def _build_result(self, product: str, region: Region, raw: list, reports=None,
                             emit=lambda event: None) -> dict:

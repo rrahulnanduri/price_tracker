@@ -35,6 +35,7 @@ def settings(tmp_path):
         load_settings(), provider="demo", db_path=str(tmp_path / "test.db"),
         refresh_hours=0, rate_limit_per_minute=0, alert_webhook_url="",
         cache_ttl_seconds=900, min_relevance=0.7, max_results=8,
+        allowed_hosts=["localhost", "testserver"], api_token="", max_watches=100,
     )
 
 

@@ -12,6 +12,7 @@ that, not by feel.
 import re
 import statistics
 import unicodedata
+import urllib.parse
 from dataclasses import dataclass, field
 
 STOPWORDS = {
@@ -106,6 +107,17 @@ KEY_TERM_MIN_OFFERS = 4  # need this many results before "most results say X" me
 DEFAULT_MIN_RELEVANCE = 0.7
 
 
+def safe_url(url: str) -> str:
+    """The URL if it is an absolute http(s) link, else "". Offer links come from scraped pages,
+    so anything else (javascript:, data:, protocol-relative) must never reach a link or webhook."""
+    url = (url or "").strip()
+    try:
+        parts = urllib.parse.urlsplit(url)
+    except ValueError:
+        return ""
+    return url if parts.scheme.lower() in ("http", "https") and parts.netloc else ""
+
+
 @dataclass
 class Offer:
     store: str
@@ -120,6 +132,9 @@ class Offer:
     flags: list[str] = field(default_factory=list)
     extracted_by: str = "rules"          # "rules" or "ai" (the LLM extraction fallback)
     source: str = ""                     # which price source found it, e.g. "google", "kieskeurig"
+
+    def __post_init__(self) -> None:
+        self.url = safe_url(self.url)
 
     @property
     def total(self) -> float:
