@@ -138,3 +138,82 @@ describe("api client", () => {
     await expect(deleteWatch(1)).resolves.toBeUndefined();
   });
 });
+
+describe("progress stream", () => {
+  it("splits chunks into lines, holding back partial lines", async () => {
+    const { createLineParser } = await import("./stream");
+    const lines: string[] = [];
+    const parser = createLineParser((line) => lines.push(line));
+    parser.push('{"a":1}\n{"b"');
+    expect(lines).toEqual(['{"a":1}']);
+    parser.push(':2}\n\n{"c":3}');
+    parser.end();
+    expect(lines).toEqual(['{"a":1}', '{"b":2}', '{"c":3}']);
+  });
+
+  it("folds events into progress", async () => {
+    const { applyEvent, progressFraction } = await import("../hooks/usePriceSearch");
+    let p = { sources: null, stage: "fetching" as const } as Parameters<typeof applyEvent>[0];
+    expect(progressFraction(p)).toBeCloseTo(0.08);
+    p = applyEvent(p, { type: "sources", names: ["google", "kieskeurig"] });
+    expect(p.sources?.map((s) => s.status)).toEqual(["pending", "pending"]);
+    p = applyEvent(p, { type: "source", name: "google", ok: false, offers: 0, error: "blocked" });
+    p = applyEvent(p, { type: "source", name: "kieskeurig", ok: true, offers: 18, error: null });
+    expect(p.sources).toEqual([
+      { name: "google", status: "failed", offers: 0, error: "blocked" },
+      { name: "kieskeurig", status: "done", offers: 18, error: null },
+    ]);
+    expect(progressFraction(p)).toBeCloseTo(0.86);
+    p = applyEvent(p, { type: "stage", stage: "matching" });
+    expect(progressFraction(p)).toBeCloseTo(0.92);
+  });
+
+  const ndjson = (events: unknown[], status = 200) =>
+    new Response(events.map((e) => JSON.stringify(e)).join("\n") + "\n", {
+      status,
+      headers: { "Content-Type": "application/x-ndjson" },
+    });
+
+  it("streams progress, then returns the result", async () => {
+    const { searchPricesStream } = await import("./api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ndjson([
+      { type: "sources", names: ["kieskeurig"] },
+      { type: "source", name: "kieskeurig", ok: true, offers: 3, error: null },
+      { type: "stage", stage: "matching" },
+      { type: "result", data: { product: "ps5", results: [] } },
+    ])));
+    const seen: string[] = [];
+    const result = await searchPricesStream("ps5", "NL", { onEvent: (e) => seen.push(e.type) });
+    expect(seen).toEqual(["sources", "source", "stage"]);
+    expect(result).toMatchObject({ product: "ps5" });
+  });
+
+  it("turns an error event into an ApiError", async () => {
+    const { searchPricesStream } = await import("./api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ndjson([
+      { type: "sources", names: ["google"] },
+      { type: "error", status: 503, detail: "Google is rate-limiting this address." },
+    ])));
+    await expect(searchPricesStream("ps5", "US")).rejects.toMatchObject({
+      status: 503,
+      message: "Google is rate-limiting this address.",
+    });
+  });
+
+  it("falls back to the plain endpoint on an older API", async () => {
+    const { searchPricesStream } = await import("./api");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("", { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ product: "ps5", results: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(searchPricesStream("ps5", "US")).resolves.toMatchObject({ product: "ps5" });
+    expect(fetchMock.mock.calls[1][0]).toBe("http://localhost:8000/api/search");
+  });
+
+  it("reports a stream that ends without an answer", async () => {
+    const { searchPricesStream } = await import("./api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ndjson([{ type: "sources", names: ["google"] }])));
+    await expect(searchPricesStream("ps5", "US")).rejects.toThrow("ended without an answer");
+  });
+});

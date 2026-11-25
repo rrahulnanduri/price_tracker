@@ -20,7 +20,7 @@
       "offers": [
         ["Best Buy", "Sony PlayStation 5 Slim Console - Disc Edition", "$499.99", "match"],
         ["Walmart", "PlayStation 5 Digital Edition Console (Slim)", "$449.00", "match"],
-        ["GameStop", "PlayStation 5 Console – Marvel's Spider-Man 2 Bundle", "$559.99", "match"],
+        ["GameStop", "PlayStation 5 Console – Marvel's Spider-Man 2 Bundle", "$559.99", "bundle"],
         ["Amazon", "PlayStation 5 Pro Console", "$699.99", "variant"],
         ["Amazon", "PS5 DualSense Wireless Controller - White", "$69.00", "accessory"],
         ["Newegg", "PS5 Vertical Stand with Cooling Fan", "$25.99", "accessory"],
@@ -34,7 +34,7 @@
         ["Apple", "AirPods Pro 2 with MagSafe Charging Case (USB-C)", "$249.00", "match"],
         ["Amazon", "Apple AirPods Pro (2nd Generation) Wireless Earbuds", "$189.99", "match"],
         ["Best Buy", "Apple - AirPods Pro 2, Wireless Active Noise Cancelling Earbuds", "$199.99", "match"],
-        ["Costco", "AirPods Pro 2 + AppleCare+ Bundle", "$239.99", "match"],
+        ["Costco", "AirPods Pro 2 + AppleCare+ Bundle", "$239.99", "bundle"],
         ["Walmart", "Apple AirPods (3rd Generation)", "$169.00", "wrong_model"],
         ["Target", "Apple AirPods 4 with Active Noise Cancellation", "$179.00", "wrong_model"],
         ["Amazon", "Silicone Case Cover for AirPods Pro 2", "$8.99", "accessory"],
@@ -85,7 +85,7 @@
       "offers": [
         ["Apple", "MacBook Air 13-inch M3 chip 8GB 256GB - Midnight", "$1,099.00", "match"],
         ["Best Buy", "Apple - MacBook Air 13.6\" Laptop - M3 chip - 8GB Memory - 256GB SSD", "$899.00", "match"],
-        ["Costco", "MacBook Air 13.6\" M3 16GB 512GB + AppleCare", "$1,249.00", "match"],
+        ["Costco", "MacBook Air 13.6\" M3 16GB 512GB + AppleCare", "$1,249.00", "bundle"],
         ["Amazon", "Apple 2024 MacBook Air 15-inch Laptop with M3 chip", "$1,299.00", "wrong_model"],
         ["B&H", "Apple MacBook Air 13\" M2 8GB 256GB", "$799.00", "wrong_model"],
         ["Walmart", "Apple MacBook Pro 14 M3", "$1,499.00", "variant"],
@@ -330,7 +330,7 @@
       "id": "dji-mini-4-pro-de", "split": "holdout", "query": "dji mini 4 pro", "country": "DE",
       "offers": [
         ["DJI", "DJI Mini 4 Pro (DJI RC-N2)", "799,00 €", "match"],
-        ["Amazon", "DJI Mini 4 Pro Fly More Combo mit DJI RC 2", "1.129,00 €", "match"],
+        ["Amazon", "DJI Mini 4 Pro Fly More Combo mit DJI RC 2", "1.129,00 €", "bundle"],
         ["MediaMarkt", "DJI Mini 3 Pro Drohne", "599,00 €", "wrong_model"],
         ["Saturn", "DJI Mini 4K Drohne", "299,00 €", "wrong_model"],
         ["Amazon", "Akku für DJI Mini 4 Pro Intelligent Flight Battery", "65,00 €", "accessory"],

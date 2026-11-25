@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import { Search } from "lucide-react";
 import type { Region } from "@/lib/api";
 
@@ -57,23 +58,31 @@ export function SearchPanel({
           </select>
         </label>
 
-        <button
+        <motion.button
           type="submit"
+          whileTap={{ scale: 0.97 }}
           disabled={isLoading || !query.trim()}
           className="mt-4 w-full border border-ink bg-transparent hover:bg-ink hover:text-paper disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink py-2.5 tracking-[0.2em] transition-colors cursor-pointer disabled:cursor-not-allowed"
         >
           {isLoading ? "SCANNING..." : "EXECUTE"}
-        </button>
+        </motion.button>
       </form>
 
+      <AnimatePresence>
       {error && (
-        <div
+        <motion.div
+          key={error}
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0, x: [0, -4, 4, -2, 0] }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.4 }}
           role="alert"
           className="mt-4 text-[10px] leading-relaxed tracking-widest text-red-900 border border-red-900/50 bg-red-900/5 p-2.5 text-center normal-case"
         >
           {error}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

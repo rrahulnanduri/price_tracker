@@ -1,9 +1,11 @@
-import { useMemo } from "react";
-import { LineChart, Line, YAxis, XAxis, Tooltip } from "recharts";
+import { useCallback, useMemo } from "react";
+import { motion } from "motion/react";
+import { LineChart, Line, ReferenceDot, YAxis, XAxis, Tooltip } from "recharts";
 import type { HistoryPoint } from "@/lib/api";
 import { historyStats, INK, PAPER, seriesStores, toChartRows } from "@/lib/chart";
 import { formatMoney, formatPercent, formatPointLabel, percentChange } from "@/lib/format";
 import { useElementSize } from "@/hooks/useElementSize";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { PanelHeader } from "./Panel";
 
 const AXIS_LINE = { stroke: INK, strokeOpacity: 0.3 };
@@ -37,7 +39,20 @@ export function TrendPanel({ points, currency, locale, colors }: TrendPanelProps
   const count = points?.length ?? 0;
   const hasChart = count > 0 && chart.width > 0 && chart.height > 0;
   const status = count === 0 ? "NO HISTORY" : `${count} CHECK${count === 1 ? "" : "S"} RECORDED`;
-  const money = (value: number) => formatMoney(value, currency, locale);
+  const money = useCallback((value: number) => formatMoney(value, currency, locale), [currency, locale]);
+  const percent = useCallback((value: number) => formatPercent(value), []);
+  // The cheapest price ever charted, marked on its line.
+  const lowestPoint = useMemo(() => {
+    let best: { label: string; store: string; value: number } | null = null;
+    for (const row of rows) {
+      for (const store of stores) {
+        const value = row[store];
+        if (typeof value === "number" && (!best || value < best.value)) best = { label: row.label, store, value };
+      }
+    }
+    return best;
+  }, [rows, stores]);
+  const chartKey = `${points?.[0]?.fetched_at ?? ""}|${count}`;
 
   return (
     <div className="h-full min-h-0 flex flex-col">
@@ -47,16 +62,24 @@ export function TrendPanel({ points, currency, locale, colors }: TrendPanelProps
         <dl className="mb-4 grid grid-cols-3 gap-2 text-[10px] tracking-[0.15em]">
           <div>
             <dt className="opacity-60">NOW</dt>
-            <dd className="text-sm font-bold">{money(stats.latest)}</dd>
+            <dd className="text-sm font-bold tabular-nums">
+              <AnimatedNumber value={stats.latest} format={money} />
+            </dd>
           </div>
           <div>
             <dt className="opacity-60">LOWEST SEEN</dt>
-            <dd className="text-sm font-bold">{money(stats.lowest)}</dd>
+            <dd className="text-sm font-bold tabular-nums">
+              <AnimatedNumber value={stats.lowest} format={money} />
+            </dd>
           </div>
           <div>
             <dt className="opacity-60">SINCE FIRST CHECK</dt>
             <dd className="text-sm font-bold">
-              {count > 1 ? formatPercent(percentChange(stats.first, stats.latest)) : "—"}
+              {count > 1 ? (
+                <AnimatedNumber value={percentChange(stats.first, stats.latest)} format={percent} />
+              ) : (
+                "—"
+              )}
             </dd>
           </div>
         </dl>
@@ -64,7 +87,13 @@ export function TrendPanel({ points, currency, locale, colors }: TrendPanelProps
 
       <div ref={chartRef} className="flex-1 w-full relative min-h-64 lg:min-h-0">
         {hasChart ? (
-          <div className="absolute inset-0">
+          <motion.div
+            key={chartKey}
+            className="absolute inset-0"
+            initial={{ opacity: 0, scale: 0.985 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          >
             <LineChart
               data={rows}
               width={chart.width}
@@ -98,12 +127,25 @@ export function TrendPanel({ points, currency, locale, colors }: TrendPanelProps
                     connectNulls
                     dot={{ fill: PAPER, stroke: color, strokeWidth: 1.5, r: 3 }}
                     activeDot={{ r: 5, fill: color }}
-                    animationDuration={900}
+                    animationDuration={1400}
+                    animationEasing="ease-out"
                   />
                 );
               })}
+              {lowestPoint && (
+                <ReferenceDot
+                  x={lowestPoint.label}
+                  y={lowestPoint.value}
+                  r={6}
+                  fill={PAPER}
+                  stroke={colors[lowestPoint.store] ?? INK}
+                  strokeWidth={2}
+                  className="lowest-dot"
+                  label={{ value: "LOWEST", position: "top", fontSize: 9, fill: INK, letterSpacing: "0.15em" }}
+                />
+              )}
             </LineChart>
-          </div>
+          </motion.div>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center border border-ink/20">
             <span className="opacity-40 text-[11px] tracking-[0.3em]">STANDBY</span>

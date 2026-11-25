@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import type { Region, Watch } from "@/lib/api";
 import { formatAge, formatMoney, formatPercent, percentChange } from "@/lib/format";
@@ -32,14 +33,20 @@ export function Watchlist({ items, regions, error, activeId, onOpen, onRemove }:
           SEARCH A PRODUCT, THEN PRESS TRACK TO RE-CHECK ITS PRICE AUTOMATICALLY.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2 overflow-y-auto custom-scrollbar pr-1 min-h-0 lg:max-h-[38vh]">
+        <ul className="flex flex-col gap-2 overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 min-h-0 lg:max-h-[38vh]">
+          <AnimatePresence initial={false}>
           {items.map((watch) => {
             const change =
               watch.latest_price !== null && watch.previous_price !== null
                 ? percentChange(watch.previous_price, watch.latest_price)
                 : null;
             return (
-              <li
+              <motion.li
+                layout
+                initial={{ opacity: 0, height: 0, y: -6 }}
+                animate={{ opacity: 1, height: "auto", y: 0 }}
+                exit={{ opacity: 0, height: 0, x: 24, transition: { duration: 0.22 } }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                 key={watch.id}
                 className={`border flex items-stretch transition-colors ${
                   watch.target_hit ? "border-ink bg-ink/15" : "border-ink/40"
@@ -71,9 +78,13 @@ export function Watchlist({ items, regions, error, activeId, onOpen, onRemove }:
                   {watch.target_price !== null && watch.currency && (
                     <div className="mt-1 text-[10px] tracking-wider">
                       {watch.target_hit ? (
-                        <span className="font-bold">
+                        <motion.span
+                          className="font-bold inline-block"
+                          animate={{ opacity: [1, 0.45, 1] }}
+                          transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                        >
                           ● TARGET HIT · {formatMoney(watch.target_price, watch.currency, localeOf(watch.country))}
-                        </span>
+                        </motion.span>
                       ) : (
                         <span className="opacity-60">
                           TARGET {formatMoney(watch.target_price, watch.currency, localeOf(watch.country))}
@@ -95,9 +106,10 @@ export function Watchlist({ items, regions, error, activeId, onOpen, onRemove }:
                 >
                   <X className="w-3.5 h-3.5" aria-hidden />
                 </button>
-              </li>
+              </motion.li>
             );
           })}
+          </AnimatePresence>
         </ul>
       )}
     </div>
