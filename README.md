@@ -16,8 +16,12 @@ pip install -r requirements.txt
 ```
 
 ```bash
-scrapling install
+.venv\Scripts\scrapling install
 ```
+
+(On a locked-down Windows machine where that browser is not allowed to run,
+the scraper falls back to Microsoft Edge automatically; `SCRAPER_BROWSER_PATH`
+picks another browser.)
 
 ```bash
 uvicorn backend.main:app --reload --port 8000

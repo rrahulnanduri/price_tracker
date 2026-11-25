@@ -49,6 +49,8 @@ BENIGN_PHRASES = re.compile(
 CJK_ACCESSORY = ("ケース", "カバー", "フィルム", "イヤーパッド", "交換用", "保護", "充電器", "ストラップ")
 CJK_INCLUDED = "付き"   # "comes with": the accessory is an extra, not the item
 CJK_USED = ("中古", "整備済")
+# Hindi: case, cover, charger, and "for use with" (Amazon.in's wording for accessories).
+INDIC_ACCESSORY = ("केस", "कवर", "चार्जर", "के साथ इस्तेमाल")
 
 # "<accessory> for <product>" phrasings, in the languages of the supported regions.
 COMPATIBILITY_MARKERS = (
@@ -68,6 +70,11 @@ CONDITION_TERMS = {
     "used": "used", "pre owned": "used", "preowned": "used", "second hand": "used",
     "tweedehands": "used", "gebraucht": "used", "occasion": "used", "open box": "used",
     "begagnad": "used", "usato": "used", "usado": "used",
+    "erneuert": "refurbished", "gebruikt": "used",
+    # "as good as new" / "in good condition": how second-hand listings describe themselves
+    "like new": "used", "als nieuw": "used", "nette staat": "used", "goede staat": "used",
+    "wie neu": "used", "neuwertig": "used", "comme neuf": "used", "como nuevo": "used",
+    "come nuovo": "used", "seminuevo": "used",
 }
 
 # Common shorthand, expanded so "ps5" and "PlayStation 5" compare equal.
@@ -83,6 +90,15 @@ ALIASES = {
 STRONG_VARIANTS = {"pro", "max", "plus", "mini", "ultra", "lite", "se", "fe", "xl"}
 # Softer variant words: only a mismatch when the shopper asked for them.
 QUERY_VARIANTS = STRONG_VARIANTS | {"air", "slim", "digital", "oled", "s", "x", "xs"}
+
+# Bundles: the item plus games, kits, vouchers or cover plans. Someone asking for "playstation 5 console"
+# wants the console, so these are dropped unless the query asks for them.
+BUNDLE_TERMS = {"bundle", "bundel", "combo", "voucher", "accessories", "accessory", "zubehor", "accessoires",
+                "applecare"}
+# Extras that make a bundle when they follow "with" / "w/" / "+" ("Console with Extra Controller").
+BUNDLE_EXTRAS = {"controller", "controllers", "dualsense", "game", "games", "spiel", "spiele", "jeu", "jeux",
+                 "headset"}
+_BUNDLE_SPLIT = re.compile(r"\b(?:with|w|incl|including|inclusief|inkl|inklusive|avec|con|mit|met|med)\b")
 
 OUTLIER_FRACTION = 0.3   # an offer under 30% of the median price is not the same product
 OUTLIER_MIN_OFFERS = 3   # ...but only trust the median with this many offers
@@ -201,18 +217,22 @@ def _is_accessory_for(title_text: str, query_tokens: list[str]) -> bool:
     """True for "<something> for <the product>" titles."""
     if not query_tokens:
         return False
-    head = re.escape(query_tokens[0])
-    # "iPhone 15 ... for AT&T" leads with the product, so it is not an accessory.
-    if re.match(rf"(?:\w+ ){{0,2}}{head}\b", title_text):
+    first = re.search(rf"\b{re.escape(query_tokens[0])}\b", title_text)
+    if not first:
         return False
+    # Only a "for" before the first mention of the product counts: "Landegestell für DJI Mini 4 Pro"
+    # is an accessory, "Apple iPhone 15 ... for AT&T" is the phone.
+    before = title_text[:first.start()]
     return any(
-        re.search(rf"\b{re.escape(marker)} (?:\w+ ){{0,5}}?{head}\b", title_text)
+        re.search(rf"\b{re.escape(marker)} (?:\w+ ){{0,5}}$", before)
         for marker in COMPATIBILITY_MARKERS
     )
 
 
 def _is_accessory(title: str, title_text: str, q_tokens: list[str], q_set: set[str]) -> bool:
     if any(term in title for term in CJK_ACCESSORY) and CJK_INCLUDED not in title:
+        return True
+    if any(term in title for term in INDIC_ACCESSORY):
         return True
     # Someone searching for "iphone 15 case" wants the "case for iPhone 15" titles.
     shopping_for_accessory = bool(q_set & ACCESSORY_TERMS)
@@ -225,6 +245,15 @@ def _is_accessory(title: str, title_text: str, q_tokens: list[str], q_set: set[s
         return True
     query_text = " ".join(q_tokens)
     return any(phrase in lead and phrase not in query_text for phrase in ACCESSORY_PHRASES)
+
+
+def _is_bundle(title_tokens: list[str], title_text: str, query_words: set[str]) -> bool:
+    """The item sold together with extras the shopper did not ask for."""
+    if (set(title_tokens) & BUNDLE_TERMS) - query_words:
+        return True
+    parts = _BUNDLE_SPLIT.split(title_text, maxsplit=1)
+    extras = set(parts[1].split()) if len(parts) == 2 else set()
+    return bool((extras & BUNDLE_EXTRAS) - query_words)
 
 
 def score_relevance(query: str, title: str, store: str = "",
@@ -274,6 +303,10 @@ def score_relevance(query: str, title: str, store: str = "",
     elif len(lead & q_set) / len(q_set) < 0.5 and _mostly_latin(title):
         score *= 0.5
         flags.append("bundle_extra")
+
+    if _is_bundle(title_tokens, title_text, set(tokenize(query))):
+        score *= 0.6
+        flags.append("bundle")
 
     if _is_accessory(title, title_text, tokenize(query), q_set):
         score *= 0.25

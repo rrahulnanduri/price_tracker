@@ -204,18 +204,30 @@ def print_offline(report: dict, verbose: bool) -> None:
 
 # -- live ----------------------------------------------------------------------
 
-async def run_live(min_relevance: float, limit: int | None) -> dict:
+POLITE_PAUSE_SECONDS = 3   # between live queries, to go easy on the sources
+
+
+async def run_live(min_relevance: float, limit: int | None, rows: list | None = None,
+                   on_row=None) -> dict:
+    """Run the live queries. Rows are appended to `rows` as they finish, so a caller can
+    report partial results if the run is interrupted; `on_row(index, total, row)` hears each one."""
     settings = load_settings()
     provider = build_provider(settings)
     queries = json.loads((HERE / "live_queries.json").read_text(encoding="utf-8"))["queries"][:limit]
-    rows = []
+    rows = [] if rows is None else rows
 
     for index, spec in enumerate(queries):
         region = get_region(spec["country"])
         started = time.monotonic()
-        row = {"query": spec["query"], "country": spec["country"], "error": None, "results": []}
+        row = {"query": spec["query"], "country": spec["country"], "error": None, "results": [],
+               "sources": []}
         try:
-            raw = await provider.search(spec["query"], region)
+            if hasattr(provider, "search_with_report"):
+                raw, reports = await provider.search_with_report(spec["query"], region)
+                row["sources"] = [r.to_dict() for r in reports]
+            else:
+                raw = await provider.search(spec["query"], region)
+                row["sources"] = [{"name": provider.name, "ok": True, "offers": len(raw), "error": None}]
             ranked, rejected = rank_offers(spec["query"], raw, min_relevance=min_relevance,
                                            limit=settings.max_results)
             low, high = spec["price_range"]
@@ -234,13 +246,19 @@ async def run_live(min_relevance: float, limit: int | None) -> dict:
             row["error"] = f"{type(exc).__name__}: {exc}"
         row["seconds"] = round(time.monotonic() - started, 1)
         rows.append(row)
+        if on_row:
+            on_row(index, len(queries), row)
         if index < len(queries) - 1:
-            await asyncio.sleep(5)   # be polite to the source
+            await asyncio.sleep(POLITE_PAUSE_SECONDS)
 
+    return live_report(provider.name, rows)
+
+
+def live_report(provider_name: str, rows: list) -> dict:
     results = [r for row in rows for r in row["results"]]
     return {
         "mode": "live",
-        "provider": provider.name,
+        "provider": provider_name,
         "run_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "queries": rows,
         "metrics": {
@@ -251,6 +269,15 @@ async def run_live(min_relevance: float, limit: int | None) -> dict:
         },
         "counts": {"queries": len(rows), "results": len(results)},
     }
+
+
+def print_live_progress(index: int, total: int, row: dict) -> None:
+    """One line per query as it finishes, so a long run visibly makes progress."""
+    sources = ", ".join(f'{s["name"]} {"ok " + str(s["offers"]) if s["ok"] else "unavailable"}'
+                        for s in row["sources"])
+    outcome = row["error"] or f'{len(row["results"])} kept of {row.get("considered", 0)}'
+    print(f'  [{index + 1}/{total}] {row["query"]} [{row["country"]}]: {outcome}'
+          f'{" (" + sources + ")" if sources else ""}, {row["seconds"]}s', flush=True)
 
 
 def print_live(report: dict, verbose: bool) -> None:
@@ -393,7 +420,14 @@ def main(argv: list[str] | None = None, llm=None) -> int:
         print_ai(report, args.verbose)
         thresholds = {name: AI_TOLERANCE for name in report["metrics"]}
     elif args.live:
-        report = asyncio.run(run_live(args.min_relevance, args.limit))
+        rows: list = []
+        print("Running live queries (Ctrl+C stops and shows what has finished)...", flush=True)
+        try:
+            report = asyncio.run(run_live(args.min_relevance, args.limit, rows, print_live_progress))
+        except KeyboardInterrupt:
+            print(f"\nStopped early after {len(rows)} quer{'y' if len(rows) == 1 else 'ies'}.\n")
+            report = live_report(build_provider(load_settings()).name, rows)
+        print()
         print_live(report, args.verbose)
         thresholds = LIVE_THRESHOLDS
     else:

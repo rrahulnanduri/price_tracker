@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MotionConfig } from "motion/react";
 import { IntroLoader, INTRO_DURATION_MS, useIntro } from "./components/IntroLoader";
 import { Panel } from "./components/Panel";
 import { ResultsPanel } from "./components/ResultsPanel";
@@ -35,7 +36,7 @@ export default function App() {
     [chosenCountry, regions, meta],
   );
 
-  const { data, isLoading, error, search: runSearch, clear } = usePriceSearch();
+  const { data, isLoading, error, progress, search: runSearch, clear } = usePriceSearch();
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const search = useCallback(
@@ -93,7 +94,8 @@ export default function App() {
     (intro.visible ? INTRO_DURATION_MS : 0) + index * PANEL_STAGGER_MS;
 
   return (
-    <>
+    // "user": animations follow the visitor's reduced-motion setting.
+    <MotionConfig reducedMotion="user">
       {intro.visible && <IntroLoader fading={intro.fading} />}
 
       <main className="min-h-screen lg:h-screen w-full bg-paper text-ink font-sans uppercase text-xs flex flex-col lg:flex-row lg:overflow-hidden selection:bg-ink selection:text-paper relative">
@@ -127,6 +129,7 @@ export default function App() {
         <Panel label="Ranked prices" enterDelayMs={enterDelay(1)}>
           <div ref={resultsRef} className="h-full min-h-0 scroll-mt-4">
           <ResultsPanel
+            progress={progress}
             data={data}
             isLoading={isLoading}
             colors={colors}
@@ -159,6 +162,6 @@ export default function App() {
           </Suspense>
         </Panel>
       </main>
-    </>
+    </MotionConfig>
   );
 }

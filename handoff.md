@@ -193,6 +193,67 @@ per-offer source, sources line with Google shown unavailable. Test fixtures in
 `tests/fixtures/` are trimmed excerpts of those real pages (links, seller data
 and result rows only; no reviews).
 
+### 10. Live loading progress and site-wide animation
+
+- **Progress stream:** `POST /api/search/stream` runs the same search as
+  `/api/search` but sends newline-delimited JSON as it goes: `sources` (which
+  sources are being asked), one `source` event per source as it finishes (ok,
+  listing count, error), `stage` (`matching`, `ai_review`), then a single
+  `result` or `error`. If the browser disconnects, the search is cancelled. The
+  frontend (`searchPricesStream`) falls back to `/api/search` on an API
+  without the route.
+- **Loader** (`SearchProgress.tsx`): replaces the old timer-driven fake bar
+  with real progress per source (spinner → ✓ count or ✗), a bar driven by
+  sources answered, and placeholder cards shaped like results.
+- **Motion** (`motion` package): results stagger in, re-rank with layout
+  animation, expand smoothly on "show all", prices and chart stats count up,
+  the chart fades in and marks the lowest price, watchlist items animate in
+  and out, a hit target pulses, errors shake in, buttons give press feedback.
+  `MotionConfig reducedMotion="user"` plus the existing CSS rule switch motion
+  off for visitors who ask for reduced motion.
+- **Removed:** the old loader and its shadcn parts (`ui/field`, `ui/progress`,
+  `lib/utils`, `components.json`), and the now-unused `@base-ui/react`,
+  `clsx`, `tailwind-merge`, `tw-animate-css` packages.
+- **Windows fix:** with `uvicorn --reload` on Windows the event loop cannot
+  start subprocesses, so the scraper's browser failed with
+  `NotImplementedError`. `google_shopping.fetch_page` now runs the browser on
+  its own Proactor loop in a worker thread in that case. Browser-start
+  failures blocked by Windows now say so plainly.
+
+**Verified:** the stream against the real sites (events arrive as each source
+finishes: Google's failure at about 1.5 s, Kieskeurig's listings at about
+5.4 s), the loader's live content in the running app, and the final results,
+sources line, stats and lowest-price marker. **Not verified:** the motion
+itself, because the in-app browser pane was hidden for the whole check, which
+stops animation frames entirely; it needs a look in a visible browser.
+
+### 11. First real Google Shopping fetches (via Edge) and the new layout
+
+- **Edge fallback:** on the work laptop Windows refuses to run the downloaded
+  Chromium (`spawn UNKNOWN`) but runs the system Microsoft Edge. Scrapling's
+  stealth browser accepts an `executable_path`, so when the bundled browser
+  cannot start the scraper retries with `SCRAPER_BROWSER_PATH` or, on Windows,
+  Edge. Through Edge, real Google Shopping pages loaded for NL and US.
+- **Google's current layout** (redirects to `udm=28`) has no stable class
+  names and no links on offer cards. `extract_offers` now reads each card's
+  text pieces (`parse_card_text`): title first, then the shop as the first
+  short piece that is not a price, label, delivery note or rating, in either
+  order. Condition labels on the card ("Pre-owned", "Refurbished",
+  "Tweedehands") are appended to the title so matching drops used units.
+  Price-filter chips ("Under $200", "Meer dan € 200") are skipped. Cards with
+  no link fall back to a Google Shopping search for the item's title.
+- On those real pages: NL 57 offers read, 8 shops ranked; US 39 offers, 8
+  shops ranked. Known limit: a listing Google does not label as used (e.g.
+  "... - Boxed" at a retro shop) is treated as new.
+- **Rate limiting observed:** after about ten Google searches in a few minutes
+  from the office network, Google served its "unusual traffic" page for every
+  query; the app reports it as `ProviderBlocked`. Normal use (cached for 15
+  minutes, rate-limited, scheduled re-checks spaced 20 s apart) sends far
+  fewer, but a shared office connection makes blocks more likely.
+- Live eval now prints each query as it finishes and handles Ctrl+C by
+  reporting what has finished. `scrapling install` must be run as
+  `.venv\Scripts\scrapling install`.
+
 ## Evals
 
 `python -m evals.run` scores the ranking pipeline on 30 hand-labelled cases
@@ -261,3 +322,27 @@ dev case, fix the rule, and confirm the holdout numbers did not fall.
 7. `npm audit` reports 10 moderate issues in dev tooling that need a breaking
    upgrade to clear; `npm audit fix` was applied for the rest.
 8. No Docker or deployment config.
+
+### 11a. Block detection false positives (2026-11-25)
+
+Live runs showed "rate-limited" on pages that were really full results pages:
+- Google's own scripts on every results page mention `/sorry/index` and `consent.google`, so those are now
+  checked against the page address only. Page text counts only for "unusual traffic" or the captcha form.
+- English-language pages often lay a "Before you continue to Google" dialog over full results. That dialog
+  now only explains a page with **no** offers (`check_consent_wall`); otherwise the results are read.
+- Struck-out ("Was ₹1,354") and converted ("(AED 1,323)") prices, and the French "Et plus de prix" label,
+  are no longer read as shop names.
+Real blocks (HTTP 429 to `/sorry/`) still happen on the office network after a burst of searches.
+Matching fixes from the same live runs: second-hand wording in titles ("Zo goed als nieuw", "Nette staat",
+"Erneuert", "Comme neuf", "Wie neu", "Like new") now marks an offer used/refurbished, and Hindi accessory
+titles on Amazon.in ("… के साथ इस्तेमाल होने वाला … केस", "for use with … case") are accessories.
+**Bundles are now filtered (owner's decision, 2026-11-25).** Someone asking for "playstation 5 console" wants
+the console, so `_is_bundle` flags titles with bundle words (bundle, combo, voucher, accessories, AppleCare) or
+extras after "with" / "w/" (controller, DualSense, game, headset), unless the query asks for them. The four eval
+offers labelled `match` under the old rule were relabelled `bundle` in `evals/cases.json` (PS5 Spider-Man 2
+bundle, AirPods + AppleCare+, MacBook Air + AppleCare, DJI Fly More Combo).
+That exposed an accessory bug: "<accessory> für DJI Mini 4 Pro" was let through because the product name sat
+within the first three words. `_is_accessory_for` now looks for a "for" word *before* the first mention of the
+product. Note this fix was prompted by a holdout case (dji-mini-4-pro-de), so that case is no longer unseen.
+Known gaps: second-hand marketplaces with no condition wording (Leboncoin, some eBay listings) and
+"Tableau pour LEGO…" (a display frame for the set) still rank as matches.

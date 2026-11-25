@@ -1,3 +1,5 @@
+import { readNdjson } from "./stream";
+
 export interface Offer {
   store: string;
   title: string;
@@ -130,6 +132,58 @@ export const searchPrices = (
     ...json("POST", { product, country, refresh: options.refresh ?? false }),
     signal: options.signal,
   });
+
+/** Progress events streamed while a search runs (see /api/search/stream). */
+export type SearchEvent =
+  | { type: "sources"; names: string[] }
+  | ({ type: "source" } & SourceReport)
+  | { type: "stage"; stage: "matching" | "ai_review" }
+  | { type: "result"; data: SearchResponse }
+  | { type: "error"; status: number; detail: string };
+
+/**
+ * The same search as `searchPrices`, but reporting progress through `onEvent` as each
+ * source answers. Falls back to the plain endpoint if the API has no streaming route.
+ */
+export async function searchPricesStream(
+  product: string,
+  country: string,
+  options: { refresh?: boolean; signal?: AbortSignal; onEvent?: (event: SearchEvent) => void } = {},
+): Promise<SearchResponse> {
+  const body = { product, country, refresh: options.refresh ?? false };
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/search/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") throw err;
+    throw new ApiError("Backend unreachable. Is the API running?", 0);
+  }
+
+  if (res.status === 404 || res.status === 405 || !res.body) {
+    return searchPrices(product, country, options);   // older API without streaming
+  }
+  if (!res.ok) {
+    const detail = await res.json().then((b) => (typeof b?.detail === "string" ? b.detail : null), () => null);
+    throw new ApiError(detail ?? `Request failed (${res.status})`, res.status);
+  }
+
+  let outcome: { data: SearchResponse } | { error: ApiError } | null = null;
+  await readNdjson(res.body, (raw) => {
+    const event = raw as SearchEvent;
+    if (event.type === "result") outcome = { data: event.data };
+    else if (event.type === "error") outcome = { error: new ApiError(event.detail, event.status) };
+    else options.onEvent?.(event);
+  });
+  const final = outcome as { data: SearchResponse } | { error: ApiError } | null;
+  if (!final) throw new ApiError("The search ended without an answer. Try again.", 0);
+  if ("error" in final) throw final.error;
+  return final.data;
+}
 
 export const getHistory = (product: string, country: string, signal?: AbortSignal) =>
   request<{ points: HistoryPoint[] }>(

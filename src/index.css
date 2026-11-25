@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @theme {
   --color-ink: #46494c;
@@ -103,6 +102,38 @@ body {
   );
   z-index: 30;
   pointer-events: none;
+}
+
+/* ========================================
+   LOADING: skeleton shimmer and progress sheen
+   ======================================== */
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    100deg,
+    rgb(70 73 76 / 0.12) 30%,
+    rgb(70 73 76 / 0.28) 50%,
+    rgb(70 73 76 / 0.12) 70%
+  );
+  background-size: 300% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+.progress-sheen {
+  background: linear-gradient(90deg, transparent, rgb(155 153 135 / 0.6), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: sheen 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@keyframes sheen {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
 }
 
 /* ========================================

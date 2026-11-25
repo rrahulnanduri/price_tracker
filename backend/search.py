@@ -66,8 +66,14 @@ class SearchService:
         return None
 
     async def search(self, product: str, region: Region, *, refresh: bool = False,
-                     client: str | None = None) -> dict:
-        """Ranked offers for a product. `client=None` (the scheduler) skips the rate limit."""
+                     client: str | None = None, on_event=None) -> dict:
+        """Ranked offers for a product. `client=None` (the scheduler) skips the rate limit.
+
+        `on_event`, if given, is called with progress events as the search runs:
+        {"type": "sources", "names": [...]}, {"type": "source", "name", "ok", "offers", "error"}
+        and {"type": "stage", "stage": "matching" | "ai_review"}.
+        """
+        emit = on_event or (lambda event: None)
         product = " ".join(product.split())
         key = (query_key(product), region.code)
 
@@ -84,11 +90,19 @@ class SearchService:
                     self._limiter.check(client)
                 async with self._fetch_slots:
                     if hasattr(self.provider, "search_with_report"):
-                        raw, reports = await self.provider.search_with_report(product, region)
+                        raw, reports = await self.provider.search_with_report(product, region, on_event=emit)
                     else:
-                        raw = await self.provider.search(product, region)
+                        emit({"type": "sources", "names": [self.provider.name]})
+                        try:
+                            raw = await self.provider.search(product, region)
+                        except Exception as exc:
+                            emit({"type": "source", "name": self.provider.name, "ok": False, "offers": 0,
+                                  "error": str(exc) or type(exc).__name__})
+                            raise
+                        emit({"type": "source", "name": self.provider.name, "ok": True, "offers": len(raw),
+                              "error": None})
                         reports = None
-                result = await self._build_result(product, region, raw, reports)
+                result = await self._build_result(product, region, raw, reports, emit)
                 if result["results"]:
                     self._cache[key] = (self._clock(), result)
                 return result
@@ -96,8 +110,10 @@ class SearchService:
             if not lock.locked():
                 self._in_flight.pop(key, None)
 
-    async def _build_result(self, product: str, region: Region, raw: list, reports=None) -> dict:
+    async def _build_result(self, product: str, region: Region, raw: list, reports=None,
+                            emit=lambda event: None) -> dict:
         min_relevance = self.settings.min_relevance
+        emit({"type": "stage", "stage": "matching"})
         for offer in raw:
             offer.source = offer.source or self.provider.name
         if reports is None:
@@ -105,6 +121,7 @@ class SearchService:
         score_offers(product, raw)
         ai_changed = None
         if self.llm is not None and self.llm.options.judge and raw:
+            emit({"type": "stage", "stage": "ai_review"})
             ai_changed = await self.llm.review_matches(product, raw, min_relevance)
         ranked, rejected = select_offers(
             product, raw, min_relevance=min_relevance, limit=self.settings.max_results

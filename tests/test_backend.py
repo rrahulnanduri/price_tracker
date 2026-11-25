@@ -9,7 +9,7 @@ from backend.config import REGIONS, get_region, load_settings
 from backend.matching import Offer, detect_condition, rank_offers, score_relevance
 from backend.pricing import parse_price
 from backend.providers import build_provider
-from backend.providers.base import ProviderBlocked, parse_shipping, parse_stock
+from backend.providers.base import ProviderBlocked, ProviderNotConfigured, parse_shipping, parse_stock
 from backend.providers.demo import DemoProvider
 from backend.providers.google_shopping import (
     build_search_url,
@@ -167,6 +167,34 @@ def test_block_pages_are_reported_not_parsed():
         check_not_blocked(Page())
 
 
+def test_results_page_scripts_are_not_mistaken_for_a_block():
+    # Real results pages mention "/sorry/index" and "consent.google" in their own scripts.
+    class Page:
+        status = 200
+        url = "https://www.google.com/search?q=switch&gl=nl&hl=nl&udm=28"
+        html_content = ('<script>if(a.pathname.indexOf("/sorry/index")>-1){}'
+                        'var c="https://consent.google.com/";</script><div>Nintendo Switch</div>')
+
+    check_not_blocked(Page())   # does not raise
+
+    class Consent(Page):
+        url = "https://consent.google.com/m?continue=..."
+
+    with pytest.raises(ProviderBlocked):
+        check_not_blocked(Consent())
+
+
+def test_consent_dialog_over_results_is_still_read():
+    from backend.providers.google_shopping import check_consent_wall
+
+    class Page:
+        html_content = '<div role="dialog" aria-label="Before you continue to Google Search"></div>'
+
+    check_not_blocked(Page())          # a dialog alone is not a block...
+    with pytest.raises(ProviderBlocked):
+        check_consent_wall(Page())     # ...but explains a page with no offers
+
+
 def test_serpapi_results_are_parsed():
     payload = {"shopping_results": [
         {"title": "Apple iPhone 15", "source": "Apple", "price": "$729.00", "extracted_price": 729.0,
@@ -285,3 +313,169 @@ def test_alert_fires_once_per_drop(settings, provider, tmp_path, monkeypatch):
     check(30)      # back above: re-arms
     check(15)      # crosses again: alert
     assert sent == [18, 15]
+
+
+def test_browser_fetch_moves_off_a_selector_loop_on_windows(monkeypatch):
+    import sys
+
+    from backend.providers import google_shopping
+
+    seen = {}
+
+    class Fetcher:
+        @staticmethod
+        async def async_fetch(url, **kwargs):
+            loop = asyncio.get_running_loop()
+            seen["loop"] = type(loop).__name__
+            seen["kwargs"] = kwargs
+            return "page"
+
+    async def run():
+        return await google_shopping.fetch_page(Fetcher, "https://example.test", "nl-NL")
+
+    # Elsewhere, or already on a suitable loop: fetched directly.
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert asyncio.run(run()) == "page" and seen["kwargs"] == {"network_idle": True, "locale": "nl-NL"}
+
+    if not hasattr(asyncio, "ProactorEventLoop"):
+        pytest.skip("Proactor loops exist only on Windows")
+    monkeypatch.setattr(sys, "platform", "win32")
+    selector = asyncio.SelectorEventLoop()
+    try:
+        assert selector.run_until_complete(run()) == "page"
+    finally:
+        selector.close()
+    assert seen["loop"] == "ProactorEventLoop"
+
+
+# Card text exactly as it appears on real Google Shopping pages (2026-11-20), in both layouts.
+@pytest.mark.parametrize("segments,currency,expected", [
+    (["Nintendo Switch OLED", "€\xa0349,99", "& meer prijzen", "Nintendo Store", "en meer", "Ook in de buurt",
+      "Retourneren binnen 14 dagen", "4,7", "(5,9K)"], "EUR",
+     {"title": "Nintendo Switch OLED", "store": "Nintendo Store", "condition": None}),
+    (["Nintendo Switch OLED The Legend of Zelda", "€\xa0339,95", "Refurbished", "Reway", "en meer"], "EUR",
+     {"title": "Nintendo Switch OLED The Legend of Zelda", "store": "Reway", "condition": "Refurbished"}),
+    (["Nintendo Switch", "€\xa0149,00", "Tweedehands", "& meer prijzen", "Gameshop Twente", "en meer", "In winkel"],
+     "EUR", {"title": "Nintendo Switch", "store": "Gameshop Twente", "condition": "Tweedehands"}),
+    (["Sony PlayStation 5 Console Digital Edition", "$589.99", "Pre-owned", "GameStop", "& more",
+      "Free delivery by Wed", "4.5", "(7K)"], "USD",
+     {"title": "Sony PlayStation 5 Console Digital Edition", "store": "GameStop", "condition": "Pre-owned"}),
+    # Older layout: shop before price.
+    (["Sony PlayStation 5 Slim Console - Disc Edition", "Best Buy", "$499.99", "Free delivery"], "USD",
+     {"title": "Sony PlayStation 5 Slim Console - Disc Edition", "store": "Best Buy", "condition": None}),
+    # Seen live 2026-11-25: struck-out and converted prices, and the French "more prices" label.
+    (["Amazon Kindle Paperwhite Signature Edition 32GB", "₹24,586.79", "Was ₹1,354", "Amazon.in"], "INR",
+     {"title": "Amazon Kindle Paperwhite Signature Edition 32GB", "store": "Amazon.in", "condition": None}),
+    (["Amazon Kindle Paperwhite 16GB", "₹33,226.07", "(AED 1,323)", "Ubuy"], "INR",
+     {"title": "Amazon Kindle Paperwhite 16GB", "store": "Ubuy", "condition": None}),
+    (["LEGO Star Wars Millennium Falcon 75192", "849,99 €", "Et plus de prix", "Amazon.fr"], "EUR",
+     {"title": "LEGO Star Wars Millennium Falcon 75192", "store": "Amazon.fr", "condition": None}),
+    # Price-filter chips and stray panels are not offers.
+    (["Under $200", "$200 - $500", "$500 - $800", "Over $800", "$", "Min"], "USD", None),
+    (["Maximaal € 200", "Meer dan € 200"], "EUR", None),
+    (["$499.99"], "USD", None),
+])
+def test_parse_card_text(segments, currency, expected):
+    from backend.providers.google_shopping import parse_card_text
+
+    assert parse_card_text(segments, currency) == expected
+
+
+def test_new_layout_card_without_links(monkeypatch):
+    pytest.importorskip("scrapling")
+    from scrapling.parser import Selector
+
+    html = """<div><div jsname="x"><div><div>Sony PlayStation 5 Console Digital Edition</div></div>
+      <div><div aria-label="Current Price: $589.99. Pre-owned." role="group"><span>$589.99</span>
+      <span>Pre-owned</span></div></div><div><span>GameStop</span><span>&amp; more</span>
+      <span>Free delivery by Wed</span><span>4.5</span><span>(7K)</span></div></div>
+      <div><span>Under $200</span><span>$200 - $500</span><span>Over $800</span></div></div>"""
+    offers = extract_offers(Selector(html), US)
+    assert [(o.store, o.price, o.title) for o in offers] == [
+        ("GAMESTOP", 589.99, "Sony PlayStation 5 Console Digital Edition (Pre-owned)"),
+    ]
+    assert offers[0].shipping_cost == 0
+    # No link on the card: fall back to a Google Shopping search for the item.
+    assert offers[0].url.startswith("https://www.google.com/search?") and "PlayStation" in offers[0].url
+    ranked, rejected = rank_offers("playstation 5 console", offers)
+    assert ranked == [] and "condition" in rejected[0].flags   # pre-owned is dropped for a new search
+
+
+def test_scraper_retries_with_system_browser_when_bundled_one_cannot_start(monkeypatch):
+    pytest.importorskip("scrapling")
+    import scrapling.fetchers
+
+    from backend.providers import google_shopping
+
+    calls = []
+
+    class Page:
+        status = 200
+        url = "https://www.google.com/search?tbm=shop"
+        html_content = "<html></html>"
+
+        def find_by_regex(self, *args, **kwargs):
+            return []
+
+    async def fake_fetch(url, **kwargs):
+        calls.append(kwargs.get("executable_path"))
+        if not kwargs.get("executable_path"):
+            raise RuntimeError("BrowserType.launch_persistent_context: spawn UNKNOWN")
+        return Page()
+
+    monkeypatch.setattr(scrapling.fetchers.StealthyFetcher, "async_fetch", staticmethod(fake_fetch))
+    monkeypatch.setattr(google_shopping, "fallback_browser", lambda: r"C:\Edge\msedge.exe")
+    assert asyncio.run(google_shopping.GoogleShoppingProvider().search("ps5", US)) == []
+    assert calls == [None, r"C:\Edge\msedge.exe"]
+
+    # No system browser to fall back to: the plain explanation is raised.
+    calls.clear()
+    monkeypatch.setattr(google_shopping, "fallback_browser", lambda: None)
+    with pytest.raises(ProviderNotConfigured, match="could not start"):
+        asyncio.run(google_shopping.GoogleShoppingProvider().search("ps5", US))
+
+
+def test_fallback_browser_setting(monkeypatch, tmp_path):
+    from backend.providers import google_shopping
+
+    browser = tmp_path / "browser.exe"
+    browser.write_text("")
+    monkeypatch.setenv("SCRAPER_BROWSER_PATH", str(browser))
+    assert google_shopping.fallback_browser() == str(browser)
+    monkeypatch.setenv("SCRAPER_BROWSER_PATH", str(tmp_path / "missing.exe"))
+    assert google_shopping.fallback_browser() is None
+
+
+# Titles from the live eval of 2026-11-25 that were ranked as matches but should not have been.
+@pytest.mark.parametrize("query,title,flag", [
+    ("nintendo switch oled", "Nintendo Switch Oled - Zo Goed Als Nieuw", "condition"),
+    ("nintendo switch oled", "Nintendo Switch Console Set OLED Wit (Nette Staat)", "condition"),
+    ("samsung galaxy s24 ultra 256gb", "Samsung Galaxy S24 Ultra 256GB Erneuert", "condition"),
+    ("lego 75192", "Lego Star Wars Falcon Millennium 75192 + Bonus Comme Neuf", "condition"),
+    ("kindle paperwhite", "Kindle Paperwhite के साथ इस्तेमाल होने वाला 5 11th जनरेशन 6.8 इंच PU लेदर केस",
+     "accessory"),
+    # Bundles are dropped when the shopper asked for the item alone.
+    ("playstation 5 console", "PlayStation 5 Console – Marvel's Spider-Man 2 Bundle (Full Game Download)",
+     "bundle"),
+    ("playstation 5 console", "Sony PS5 Slim Digital Console w/Accessories and Combo Voucher", "bundle"),
+    ("playstation 5 console", "Sony Playstation 5 Console with Extra Controller & Free GTAVI", "bundle"),
+    ("playstation 5 console", "Sony PlayStation 5 Slim Digital Edition 825GB Console with 2 DualSense", "bundle"),
+    ("airpods pro 2", "AirPods Pro 2 + AppleCare+ Bundle", "bundle"),
+    ("dji mini 4 pro", "Landegestell für DJI Mini 4 Pro, faltbar", "accessory"),
+])
+def test_live_eval_mismatches_are_rejected(query, title, flag):
+    offers = [Offer(store="SHOP", title=title, price=300.0, price_text="")]
+    ranked, rejected = rank_offers(query, offers)
+    assert ranked == [] and flag in rejected[0].flags
+
+
+
+@pytest.mark.parametrize("query,title", [
+    ("playstation 5 spider-man 2 bundle", "PlayStation 5 Console Spider-Man 2 Bundle"),   # asked for it
+    ("airpods pro 2", "Apple AirPods Pro 2 with MagSafe Charging Case (USB-C)"),           # part of the item
+    ("iphone 15", "Apple iPhone 15 128GB for AT&T"),                                       # "for" after the item
+    ("xbox wireless controller", "Xbox Wireless Controller with USB-C Cable"),
+])
+def test_bundle_and_accessory_rules_keep_the_item(query, title):
+    ranked, _ = rank_offers(query, [Offer(store="SHOP", title=title, price=300.0, price_text="")])
+    assert len(ranked) == 1

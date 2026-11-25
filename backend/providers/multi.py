@@ -32,6 +32,16 @@ class SourceReport:
         return {"name": self.name, "ok": self.ok, "offers": self.offers, "error": self.error}
 
 
+def _failure(name: str, error: BaseException) -> SourceReport:
+    if isinstance(error, ProviderError):
+        message = str(error)
+    elif isinstance(error, asyncio.TimeoutError):
+        message = "timed out"
+    else:
+        message = "failed"
+    return SourceReport(name, ok=False, error=message)
+
+
 class MultiProvider:
     def __init__(self, primary: Provider | None, extras_for: Callable[[Region], list[Provider]]):
         self.primary = primary
@@ -46,7 +56,11 @@ class MultiProvider:
         offers, _ = await self.search_with_report(product, region)
         return offers
 
-    async def search_with_report(self, product: str, region: Region) -> tuple[list[Offer], list[SourceReport]]:
+    async def search_with_report(
+        self, product: str, region: Region, on_event: Callable[[dict], None] | None = None,
+    ) -> tuple[list[Offer], list[SourceReport]]:
+        """Pool every source's offers. `on_event` hears which sources start and how each one ends."""
+        emit = on_event or (lambda event: None)
         sources = self.sources_for(region)
         if not sources:
             raise ProviderNotConfigured(
@@ -54,8 +68,16 @@ class MultiProvider:
                 "Set SERPAPI_KEY or PRICE_PROVIDER=google to search Google Shopping."
             )
 
+        emit({"type": "sources", "names": [s.name for s in sources]})
+
         async def run(source: Provider):
-            return await asyncio.wait_for(source.search(product, region), SOURCE_TIMEOUT_SECONDS)
+            try:
+                found = await asyncio.wait_for(source.search(product, region), SOURCE_TIMEOUT_SECONDS)
+            except Exception as exc:
+                emit({"type": "source", **_failure(source.name, exc).to_dict()})
+                raise
+            emit({"type": "source", **SourceReport(source.name, ok=True, offers=len(found)).to_dict()})
+            return found
 
         results = await asyncio.gather(*(run(s) for s in sources), return_exceptions=True)
         offers: list[Offer] = []
@@ -66,10 +88,8 @@ class MultiProvider:
                 if not isinstance(result, Exception):
                     raise result
                 errors.append(result)
-                message = str(result) if isinstance(result, ProviderError) else "timed out" \
-                    if isinstance(result, asyncio.TimeoutError) else "failed"
                 logger.warning("Source %s failed for %r: %r", source.name, product, result)
-                reports.append(SourceReport(source.name, ok=False, error=message))
+                reports.append(_failure(source.name, result))
                 continue
             for offer in result:
                 offer.source = offer.source or source.name

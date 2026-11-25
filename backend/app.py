@@ -1,9 +1,11 @@
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import scheduler
@@ -78,23 +80,41 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
         allow_headers=["*"],
     )
 
-    async def run_search(product: str, region: Region, refresh: bool, client: str | None) -> dict:
-        try:
-            return await service.search(product, region, refresh=refresh, client=client)
-        except RateLimited as exc:
-            raise HTTPException(
+    def search_error(exc: Exception, product: str, region: Region) -> HTTPException:
+        """The HTTP error a failed search should produce."""
+        if isinstance(exc, HTTPException):
+            return exc
+        if isinstance(exc, RateLimited):
+            return HTTPException(
                 status_code=429,
                 detail=f"Too many searches. Try again in {exc.retry_after}s.",
                 headers={"Retry-After": str(exc.retry_after)},
             )
-        except (ProviderNotConfigured, ProviderBlocked) as exc:
-            raise HTTPException(status_code=503, detail=str(exc))
-        except ProviderError as exc:
+        if isinstance(exc, (ProviderNotConfigured, ProviderBlocked)):
+            return HTTPException(status_code=503, detail=str(exc))
+        if isinstance(exc, ProviderError):
             logger.warning("Provider failed for %r (%s): %s", product, region.code, exc)
-            raise HTTPException(status_code=502, detail="Could not reach the price source. Try again shortly.")
-        except Exception:
-            logger.exception("Search failed for %r (%s)", product, region.code)
-            raise HTTPException(status_code=502, detail="Could not reach the price source. Try again shortly.")
+        else:
+            logger.error("Search failed for %r (%s)", product, region.code, exc_info=exc)
+        return HTTPException(status_code=502, detail="Could not reach the price source. Try again shortly.")
+
+    def finish(product: str, region: Region, result: dict) -> dict:
+        """The response for a completed search; no matching offers is a 404."""
+        if not result["results"]:
+            detail = "No results found. Try a different product name."
+            if result["considered"]:
+                detail = (f'Found {result["considered"]} listings, but none matched "{product}" '
+                          "closely enough. Try a more specific name.")
+            raise HTTPException(status_code=404, detail=detail)
+        return {**result, "watch": storage.find_watch(product, region.code)}
+
+    async def run_search(product: str, region: Region, refresh: bool, client: str | None,
+                         on_event=None) -> dict:
+        try:
+            result = await service.search(product, region, refresh=refresh, client=client, on_event=on_event)
+            return finish(product, region, result)
+        except Exception as exc:
+            raise search_error(exc, product, region) from exc
 
     @app.get("/api/meta")
     def meta():
@@ -118,15 +138,36 @@ def create_app(settings: Settings | None = None, provider: Provider | None = Non
     async def search_prices(req: SearchRequest, request: Request):
         product, region = _product_or_422(req.product), _region_or_422(req.country)
         client = request.client.host if request.client else "unknown"
-        result = await run_search(product, region, req.refresh, client)
-        if not result["results"]:
-            detail = "No results found. Try a different product name."
-            if result["considered"]:
-                detail = (f'Found {result["considered"]} listings, but none matched "{product}" '
-                          "closely enough. Try a more specific name.")
-            raise HTTPException(status_code=404, detail=detail)
-        watch = storage.find_watch(product, region.code)
-        return {**result, "watch": watch}
+        return await run_search(product, region, req.refresh, client)
+
+    @app.post("/api/search/stream")
+    async def search_prices_stream(req: SearchRequest, request: Request):
+        """The same search, sent as newline-delimited JSON: progress events, then one result or error."""
+        product, region = _product_or_422(req.product), _region_or_422(req.country)
+        client = request.client.host if request.client else "unknown"
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+
+        async def work() -> None:
+            try:
+                result = await run_search(product, region, req.refresh, client, on_event=queue.put_nowait)
+                queue.put_nowait({"type": "result", "data": result})
+            except HTTPException as exc:
+                queue.put_nowait({"type": "error", "status": exc.status_code, "detail": exc.detail})
+
+        async def lines():
+            task = asyncio.create_task(work())
+            try:
+                while True:
+                    event = await queue.get()
+                    yield json.dumps(event, ensure_ascii=False) + "\n"
+                    if event["type"] in ("result", "error"):
+                        break
+            finally:
+                if not task.done():
+                    task.cancel()   # the browser went away: stop the search
+
+        return StreamingResponse(lines(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @app.get("/api/history")
     def history(product: str, country: str = DEFAULT_REGION):

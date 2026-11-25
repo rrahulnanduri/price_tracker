@@ -233,3 +233,48 @@ def test_results_are_not_capped_at_eight(settings, provider):
 
 def test_offer_dict_includes_source():
     assert Offer("A", "t", 1.0, "$1", source="kieskeurig").to_dict()["source"] == "kieskeurig"
+
+
+# -- streamed progress -----------------------------------------------------------
+
+def stream(client, body):
+    import json
+    with client.stream("POST", "/api/search/stream", json=body) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/x-ndjson")
+        return [json.loads(line) for line in response.iter_lines() if line]
+
+
+def test_stream_reports_each_source_then_the_result(settings):
+    multi = MultiProvider(Source("google", error=ProviderBlocked("blocked")),
+                          lambda region: [Source("kieskeurig", [offer("Shop A", 20)])])
+    with TestClient(create_app(settings, multi)) as client:
+        events = stream(client, {"product": "acme widget 3000", "country": "NL"})
+        again = stream(client, {"product": "acme widget 3000", "country": "NL"})
+
+    assert events[0] == {"type": "sources", "names": ["google", "kieskeurig"]}
+    sources = {e["name"]: e for e in events if e["type"] == "source"}
+    assert sources["google"]["ok"] is False and sources["google"]["error"] == "blocked"
+    assert sources["kieskeurig"] == {"type": "source", "name": "kieskeurig", "ok": True, "offers": 1, "error": None}
+    assert {"type": "stage", "stage": "matching"} in events
+    assert events[-1]["type"] == "result" and events[-1]["data"]["results"][0]["store"] == "SHOP A"
+    # A cached answer arrives as the result straight away.
+    assert [e["type"] for e in again] == ["result"] and again[0]["data"]["cached"] is True
+
+
+def test_stream_ends_with_an_error_event(client, provider):
+    provider.offers = []
+    events = stream(client, {"product": "acme widget 3000"})
+    assert events[0] == {"type": "sources", "names": ["fake"]}
+    assert events[-1] == {"type": "error", "status": 404,
+                          "detail": "No results found. Try a different product name."}
+
+    provider.error = ProviderBlocked("Google is rate-limiting this address.")
+    events = stream(client, {"product": "acme widget 3000 blue"})
+    assert events[1]["type"] == "source" and events[1]["ok"] is False
+    assert events[-1] == {"type": "error", "status": 503, "detail": "Google is rate-limiting this address."}
+
+
+def test_stream_validates_input(client):
+    assert client.post("/api/search/stream", json={"product": "  "}).status_code == 422
+    assert client.post("/api/search/stream", json={"product": "x", "country": "ZZ"}).status_code == 422
